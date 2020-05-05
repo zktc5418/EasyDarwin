@@ -8,9 +8,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/EasyDarwin/EasyDarwin/models"
-	"github.com/EasyDarwin/EasyDarwin/rtsp"
 	"github.com/MeloQi/sessions"
+	"github.com/bruce-qin/EasyDarwin/models"
+	"github.com/bruce-qin/EasyDarwin/rtsp"
 	"github.com/bruce-qin/EasyGoLib/db"
 	"github.com/bruce-qin/EasyGoLib/utils"
 	"github.com/gin-gonic/gin"
