@@ -1,4 +1,4 @@
-module github.com/EasyDarwin/EasyDarwin
+module github.com/bruce-qin/EasyDarwin
 
 go 1.14
 
