@@ -5,8 +5,6 @@ import (
 	"strings"
 	"sync"
 	"time"
-
-	"github.com/penggy/EasyGoLib/utils"
 )
 
 type Pusher struct {
@@ -158,7 +156,7 @@ func NewClientPusher(client *RTSPClient) (pusher *Pusher) {
 		RTSPClient:     client,
 		Session:        nil,
 		players:        make(map[string]*Player),
-		gopCacheEnable: utils.Conf().Section("rtsp").Key("gop_cache_enable").MustBool(true),
+		gopCacheEnable: GetServer().gopCacheEnable,
 		gopCache:       make([]*RTPPack, 0),
 
 		cond:  sync.NewCond(&sync.Mutex{}),
@@ -180,7 +178,7 @@ func NewPusher(session *Session) (pusher *Pusher) {
 		Session:        session,
 		RTSPClient:     nil,
 		players:        make(map[string]*Player),
-		gopCacheEnable: utils.Conf().Section("rtsp").Key("gop_cache_enable").MustBool(true),
+		gopCacheEnable: GetServer().gopCacheEnable,
 		gopCache:       make([]*RTPPack, 0),
 
 		cond:  sync.NewCond(&sync.Mutex{}),

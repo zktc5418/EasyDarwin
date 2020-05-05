@@ -18,8 +18,8 @@ import (
 	"time"
 
 	"github.com/EasyDarwin/EasyDarwin/models"
-	"github.com/penggy/EasyGoLib/db"
-	"github.com/penggy/EasyGoLib/utils"
+	"github.com/bruce-qin/EasyGoLib/db"
+	"github.com/bruce-qin/EasyGoLib/utils"
 
 	"github.com/teris-io/shortid"
 )
@@ -138,28 +138,25 @@ func (session *Session) String() string {
 }
 
 func NewSession(server *Server, conn net.Conn) *Session {
-	networkBuffer := utils.Conf().Section("rtsp").Key("network_buffer").MustInt(204800)
-	timeoutMillis := utils.Conf().Section("rtsp").Key("timeout").MustInt(0)
+	networkBuffer := server.networkBuffer
+	timeoutMillis := server.rtspTimeoutMillisecond
 	timeoutTCPConn := &RichConn{conn, time.Duration(timeoutMillis) * time.Millisecond}
-	authorizationEnable := utils.Conf().Section("rtsp").Key("authorization_enable").MustInt(0)
-	close_old := utils.Conf().Section("rtsp").Key("close_old").MustInt(0)
-	debugLogEnable := utils.Conf().Section("rtsp").Key("debug_log_enable").MustInt(0)
 	session := &Session{
 		ID:                  shortid.MustGenerate(),
 		Server:              server,
 		Conn:                timeoutTCPConn,
 		connRW:              bufio.NewReadWriter(bufio.NewReaderSize(timeoutTCPConn, networkBuffer), bufio.NewWriterSize(timeoutTCPConn, networkBuffer)),
 		StartAt:             time.Now(),
-		Timeout:             utils.Conf().Section("rtsp").Key("timeout").MustInt(0),
-		authorizationEnable: authorizationEnable != 0,
-		debugLogEnable:      debugLogEnable != 0,
+		Timeout:             server.rtspTimeoutMillisecond,
+		authorizationEnable: server.authorizationEnable,
+		debugLogEnable:      server.debugLogEnable,
 		RTPHandles:          make([]func(*RTPPack), 0),
 		StopHandles:         make([]func(), 0),
 		vRTPChannel:         -1,
 		vRTPControlChannel:  -1,
 		aRTPChannel:         -1,
 		aRTPControlChannel:  -1,
-		closeOld:            close_old != 0,
+		closeOld:            server.closeOld,
 	}
 
 	session.logger = log.New(os.Stdout, fmt.Sprintf("[%s]", session.ID), log.LstdFlags|log.Lshortfile)

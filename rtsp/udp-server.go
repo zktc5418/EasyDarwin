@@ -3,13 +3,12 @@ package rtsp
 import (
 	"bytes"
 	"fmt"
+	"github.com/bruce-qin/EasyGoLib/utils"
 	"log"
 	"net"
 	"strconv"
 	"strings"
 	"time"
-
-	"github.com/penggy/EasyGoLib/utils"
 )
 
 type UDPServer struct {
@@ -91,8 +90,13 @@ func (s *UDPServer) Stop() {
 }
 
 func (s *UDPServer) SetupAudio() (err error) {
+	server := GetServer()
 	logger := s.Logger()
-	addr, err := net.ResolveUDPAddr("udp", ":0")
+	aport, err := utils.FindAvailableUDPPort(server.rtpMinUdpPort, server.rtpMaxUdpPort)
+	if err != nil {
+		return
+	}
+	addr, err := net.ResolveUDPAddr("udp", fmt.Sprint(":", aport))
 	if err != nil {
 		return
 	}
@@ -100,7 +104,7 @@ func (s *UDPServer) SetupAudio() (err error) {
 	if err != nil {
 		return
 	}
-	networkBuffer := utils.Conf().Section("rtsp").Key("network_buffer").MustInt(1048576)
+	networkBuffer := server.networkBuffer
 	if err := s.AConn.SetReadBuffer(networkBuffer); err != nil {
 		logger.Printf("udp server audio conn set read buffer error, %v", err)
 	}
@@ -139,7 +143,11 @@ func (s *UDPServer) SetupAudio() (err error) {
 			}
 		}
 	}()
-	addr, err = net.ResolveUDPAddr("udp", ":0")
+	cport, err := utils.FindAvailableUDPPort(server.rtpMinUdpPort, server.rtpMaxUdpPort)
+	if err != nil {
+		return
+	}
+	addr, err = net.ResolveUDPAddr("udp", fmt.Sprint(":", cport))
 	if err != nil {
 		return
 	}
@@ -184,8 +192,13 @@ func (s *UDPServer) SetupAudio() (err error) {
 }
 
 func (s *UDPServer) SetupVideo() (err error) {
+	server := GetServer()
 	logger := s.Logger()
-	addr, err := net.ResolveUDPAddr("udp", ":0")
+	vport, err := utils.FindAvailableUDPPort(server.rtpMinUdpPort, server.rtpMaxUdpPort)
+	if err != nil {
+		return
+	}
+	addr, err := net.ResolveUDPAddr("udp", fmt.Sprint(":", vport))
 	if err != nil {
 		return
 	}
@@ -193,7 +206,7 @@ func (s *UDPServer) SetupVideo() (err error) {
 	if err != nil {
 		return
 	}
-	networkBuffer := utils.Conf().Section("rtsp").Key("network_buffer").MustInt(1048576)
+	networkBuffer := server.networkBuffer
 	if err := s.VConn.SetReadBuffer(networkBuffer); err != nil {
 		logger.Printf("udp server video conn set read buffer error, %v", err)
 	}
@@ -233,7 +246,11 @@ func (s *UDPServer) SetupVideo() (err error) {
 		}
 	}()
 
-	addr, err = net.ResolveUDPAddr("udp", ":0")
+	cport, err := utils.FindAvailableUDPPort(server.rtpMinUdpPort, server.rtpMaxUdpPort)
+	if err != nil {
+		return
+	}
+	addr, err = net.ResolveUDPAddr("udp", fmt.Sprint(":", cport))
 	if err != nil {
 		return
 	}

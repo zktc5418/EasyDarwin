@@ -6,16 +6,17 @@ import (
 	"mime"
 	"net/http"
 	"path/filepath"
+	"time"
 
-	"github.com/penggy/EasyGoLib/db"
+	"github.com/bruce-qin/EasyGoLib/db"
 
+	"github.com/MeloQi/sessions"
+	"github.com/bruce-qin/EasyGoLib/utils"
+	"github.com/gin-contrib/cors"
 	"github.com/gin-contrib/pprof"
 	"github.com/gin-contrib/static"
 	"github.com/gin-gonic/gin"
-	"github.com/penggy/EasyGoLib/utils"
-	"github.com/penggy/cors"
-	"github.com/penggy/sessions"
-	validator "gopkg.in/go-playground/validator.v8"
+	validator "github.com/go-playground/validator/v10"
 )
 
 /**
@@ -78,8 +79,8 @@ func Errors() gin.HandlerFunc {
 					errs := err.Err.(validator.ValidationErrors)
 					for _, err := range errs {
 						sec := utils.Conf().Section("localize")
-						field := sec.Key(err.Field).MustString(err.Field)
-						tag := sec.Key(err.Tag).MustString(err.Tag)
+						field := sec.Key(err.Field()).MustString(err.Field())
+						tag := sec.Key(err.Tag()).MustString(err.Tag())
 						c.AbortWithStatusJSON(http.StatusBadRequest, fmt.Sprintf("%s %s", field, tag))
 						return
 					}
@@ -109,7 +110,13 @@ func Init() (err error) {
 	// Router.Use(gin.Logger())
 	Router.Use(gin.Recovery())
 	Router.Use(Errors())
-	Router.Use(cors.Default())
+	Router.Use(cors.New(cors.Config{
+		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "HEAD"},
+		AllowHeaders:     []string{"Origin", "Content-Length", "Content-Type"},
+		AllowCredentials: true,
+		AllowAllOrigins:  true,
+		MaxAge:           12 * time.Hour,
+	}))
 
 	store := sessions.NewGormStoreWithOptions(db.SQLite, sessions.GormStoreOptions{
 		TableName: "t_sessions",

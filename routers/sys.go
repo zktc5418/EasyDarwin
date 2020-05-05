@@ -10,10 +10,10 @@ import (
 
 	"github.com/EasyDarwin/EasyDarwin/models"
 	"github.com/EasyDarwin/EasyDarwin/rtsp"
+	"github.com/MeloQi/sessions"
+	"github.com/bruce-qin/EasyGoLib/db"
+	"github.com/bruce-qin/EasyGoLib/utils"
 	"github.com/gin-gonic/gin"
-	"github.com/penggy/EasyGoLib/db"
-	"github.com/penggy/EasyGoLib/utils"
-	"github.com/penggy/sessions"
 	"github.com/shirou/gopsutil/cpu"
 	"github.com/shirou/gopsutil/mem"
 )

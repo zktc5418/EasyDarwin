@@ -13,28 +13,76 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/penggy/EasyGoLib/utils"
+	"github.com/bruce-qin/EasyGoLib/utils"
 )
 
 type Server struct {
 	SessionLogger
-	TCPListener    *net.TCPListener
-	TCPPort        int
-	Stoped         bool
-	pushers        map[string]*Pusher // Path <-> Pusher
-	pushersLock    sync.RWMutex
-	addPusherCh    chan *Pusher
-	removePusherCh chan *Pusher
+	TCPListener            *net.TCPListener
+	TCPPort                int
+	Stoped                 bool
+	pushers                map[string]*Pusher // Path <-> Pusher
+	pushersLock            sync.RWMutex
+	addPusherCh            chan *Pusher
+	removePusherCh         chan *Pusher
+	rtpMinUdpPort          uint16
+	rtpMaxUdpPort          uint16
+	networkBuffer          int
+	localRecord            byte
+	ffmpeg                 string
+	m3u8DirPath            string
+	tsDurationSecond       int
+	gopCacheEnable         bool
+	debugLogEnable         bool
+	playerQueueLimit       int
+	dropPacketWhenPaused   bool
+	rtspTimeoutMillisecond int
+	authorizationEnable    bool
+	closeOld               bool
 }
 
-var Instance *Server = &Server{
-	SessionLogger:  SessionLogger{log.New(os.Stdout, "[RTSPServer]", log.LstdFlags|log.Lshortfile)},
-	Stoped:         true,
-	TCPPort:        utils.Conf().Section("rtsp").Key("port").MustInt(554),
-	pushers:        make(map[string]*Pusher),
-	addPusherCh:    make(chan *Pusher),
-	removePusherCh: make(chan *Pusher),
-}
+var Instance *Server = func() (server *Server) {
+	logger := SessionLogger{log.New(os.Stdout, "[RTSPServer]", log.LstdFlags|log.Lshortfile)}
+	rtspFile := utils.Conf().Section("rtsp")
+	rtpPortRange := rtspFile.Key("rtpserver_udport_range").MustString("10000:60000")
+	rtpMinPort, err := strconv.ParseUint(rtpPortRange[:strings.Index(rtpPortRange, ":")], 10, 16)
+	if err != nil {
+		logger.logger.Printf("invalidate rtp udp port: %v", err)
+		rtpMinPort = 10000
+	}
+	rtpMaxPort, err := strconv.ParseUint(rtpPortRange[strings.Index(rtpPortRange, ":")+1:], 10, 16)
+	if err != nil {
+		logger.logger.Printf("invalidate rtp udp port: %v", err)
+		rtpMaxPort = 60000
+	}
+	networkBuffer := rtspFile.Key("network_buffer").MustInt(1048576)
+	localRecord := rtspFile.Key("save_stream_to_local").MustUint(0)
+	ffmpeg := rtspFile.Key("ffmpeg_path").MustString("")
+	m3u8_dir_path := rtspFile.Key("m3u8_dir_path").MustString("")
+	ts_duration_second := rtspFile.Key("ts_duration_second").MustInt(6)
+	return &Server{
+		SessionLogger:          logger,
+		Stoped:                 true,
+		TCPPort:                rtspFile.Key("port").MustInt(554),
+		pushers:                make(map[string]*Pusher),
+		addPusherCh:            make(chan *Pusher),
+		removePusherCh:         make(chan *Pusher),
+		rtpMinUdpPort:          uint16(rtpMinPort),
+		rtpMaxUdpPort:          uint16(rtpMaxPort),
+		networkBuffer:          networkBuffer,
+		localRecord:            byte(localRecord),
+		ffmpeg:                 ffmpeg,
+		m3u8DirPath:            m3u8_dir_path,
+		tsDurationSecond:       ts_duration_second,
+		gopCacheEnable:         rtspFile.Key("gop_cache_enable").MustBool(true),
+		debugLogEnable:         rtspFile.Key("debug_log_enable").MustBool(false),
+		playerQueueLimit:       rtspFile.Key("player_queue_limit").MustInt(0),
+		dropPacketWhenPaused:   rtspFile.Key("drop_packet_when_paused").MustBool(false),
+		rtspTimeoutMillisecond: rtspFile.Key("timeout").MustInt(0),
+		authorizationEnable:    rtspFile.Key("authorization_enable").MustBool(false),
+		closeOld:               rtspFile.Key("close_old").MustBool(false),
+	}
+}()
 
 func GetServer() *Server {
 	return Instance
@@ -51,10 +99,10 @@ func (server *Server) Start() (err error) {
 		return
 	}
 
-	localRecord := utils.Conf().Section("rtsp").Key("save_stream_to_local").MustInt(0)
-	ffmpeg := utils.Conf().Section("rtsp").Key("ffmpeg_path").MustString("")
-	m3u8_dir_path := utils.Conf().Section("rtsp").Key("m3u8_dir_path").MustString("")
-	ts_duration_second := utils.Conf().Section("rtsp").Key("ts_duration_second").MustInt(6)
+	localRecord := server.localRecord             //utils.Conf().Section("rtsp").Key("save_stream_to_local").MustInt(0)
+	ffmpeg := server.ffmpeg                       //utils.Conf().Section("rtsp").Key("ffmpeg_path").MustString("")
+	m3u8_dir_path := server.m3u8DirPath           //utils.Conf().Section("rtsp").Key("m3u8_dir_path").MustString("")
+	ts_duration_second := server.tsDurationSecond //utils.Conf().Section("rtsp").Key("ts_duration_second").MustInt(6)
 	SaveStreamToLocal := false
 	if (len(ffmpeg) > 0) && localRecord > 0 && len(m3u8_dir_path) > 0 {
 		err := utils.EnsureDir(m3u8_dir_path)
@@ -149,7 +197,7 @@ func (server *Server) Start() (err error) {
 	server.Stoped = false
 	server.TCPListener = listener
 	logger.Println("rtsp server start on", server.TCPPort)
-	networkBuffer := utils.Conf().Section("rtsp").Key("network_buffer").MustInt(1048576)
+	networkBuffer := server.networkBuffer
 	for !server.Stoped {
 		conn, err := server.TCPListener.Accept()
 		if err != nil {

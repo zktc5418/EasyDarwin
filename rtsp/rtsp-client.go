@@ -18,7 +18,7 @@ import (
 
 	"github.com/teris-io/shortid"
 
-	"github.com/penggy/EasyGoLib/utils"
+	"github.com/bruce-qin/EasyGoLib/utils"
 
 	"github.com/pixelbender/go-sdp/sdp"
 )
@@ -48,8 +48,8 @@ type RTSPClient struct {
 	OptionIntervalMillis int64
 	SDPRaw               string
 
-	debugLogEnable       bool
-	lastRtpSN            uint16
+	debugLogEnable bool
+	lastRtpSN      uint16
 
 	Agent    string
 	authLine string
@@ -74,7 +74,6 @@ func NewRTSPClient(server *Server, rawUrl string, sendOptionMillis int64, agent 
 	if err != nil {
 		return
 	}
-	debugLogEnable := utils.Conf().Section("rtsp").Key("debug_log_enable").MustInt(0)
 	client = &RTSPClient{
 		Server:               server,
 		Stoped:               false,
@@ -89,7 +88,7 @@ func NewRTSPClient(server *Server, rawUrl string, sendOptionMillis int64, agent 
 		OptionIntervalMillis: sendOptionMillis,
 		StartAt:              time.Now(),
 		Agent:                agent,
-		debugLogEnable:       debugLogEnable != 0,
+		debugLogEnable:       GetServer().debugLogEnable,
 	}
 	client.logger = log.New(os.Stdout, fmt.Sprintf("[%s]", client.ID), log.LstdFlags|log.Lshortfile)
 	if !utils.Debug {
@@ -203,7 +202,7 @@ func (client *RTSPClient) requestStream(timeout time.Duration) (err error) {
 		return err
 	}
 
-	networkBuffer := utils.Conf().Section("rtsp").Key("network_buffer").MustInt(204800)
+	networkBuffer := GetServer().networkBuffer
 
 	timeoutConn := RichConn{
 		conn,
@@ -267,7 +266,7 @@ func (client *RTSPClient) requestStream(timeout time.Duration) (err error) {
 		switch media.Type {
 		case "video":
 			client.VControl = media.Attributes.Get("control")
-			client.VCodec = media.Formats[0].Name
+			client.VCodec = media.Format[0].Name
 			var _url = ""
 			if strings.Index(strings.ToLower(client.VControl), "rtsp://") == 0 {
 				_url = client.VControl
@@ -301,7 +300,7 @@ func (client *RTSPClient) requestStream(timeout time.Duration) (err error) {
 			session, _ = resp.Header["Session"].(string)
 		case "audio":
 			client.AControl = media.Attributes.Get("control")
-			client.ACodec = media.Formats[0].Name
+			client.ACodec = media.Format[0].Name
 			var _url = ""
 			if strings.Index(strings.ToLower(client.AControl), "rtsp://") == 0 {
 				_url = client.AControl
@@ -427,8 +426,8 @@ func (client *RTSPClient) startStream() {
 				rtp := ParseRTP(pack.Buffer.Bytes())
 				if rtp != nil {
 					rtpSN := uint16(rtp.SequenceNumber)
-					if client.lastRtpSN != 0 && client.lastRtpSN + 1 != rtpSN {
-						client.logger.Printf("%s, %d packets lost, current SN=%d, last SN=%d\n", client.String(), rtpSN - client.lastRtpSN, rtpSN, client.lastRtpSN)
+					if client.lastRtpSN != 0 && client.lastRtpSN+1 != rtpSN {
+						client.logger.Printf("%s, %d packets lost, current SN=%d, last SN=%d\n", client.String(), rtpSN-client.lastRtpSN, rtpSN, client.lastRtpSN)
 					}
 					client.lastRtpSN = rtpSN
 				}
@@ -495,7 +494,7 @@ func (client *RTSPClient) startStream() {
 
 func (client *RTSPClient) Start(timeout time.Duration) (err error) {
 	if timeout == 0 {
-		timeoutMillis := utils.Conf().Section("rtsp").Key("timeout").MustInt(0)
+		timeoutMillis := GetServer().rtspTimeoutMillisecond
 		timeout = time.Duration(timeoutMillis) * time.Millisecond
 	}
 	err = client.requestStream(timeout)

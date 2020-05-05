@@ -5,8 +5,8 @@ import (
 	"strings"
 
 	"github.com/EasyDarwin/EasyDarwin/rtsp"
+	"github.com/bruce-qin/EasyGoLib/utils"
 	"github.com/gin-gonic/gin"
-	"github.com/penggy/EasyGoLib/utils"
 )
 
 /**
