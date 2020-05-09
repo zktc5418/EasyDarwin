@@ -10,15 +10,16 @@ import (
 type Pusher struct {
 	*Session
 	*RTSPClient
-	players           map[string]*Player //SessionID <-> Player
-	playersLock       sync.RWMutex
-	gopCacheEnable    bool
-	gopCache          []*RTPPack
-	gopCacheLock      sync.RWMutex
+	players        map[string]*Player //SessionID <-> Player
+	playersLock    sync.RWMutex
+	gopCacheEnable bool
+
+	gopCache []*RTPPack
+	//gopCacheLock      sync.RWMutex
 	UDPServer         *UDPServer
 	spsppsInSTAPaPack bool
-	cond              *sync.Cond
-	queue             []*RTPPack
+	//cond              *sync.Cond
+	queue chan *RTPPack
 }
 
 func (pusher *Pusher) String() string {
@@ -159,8 +160,8 @@ func NewClientPusher(client *RTSPClient) (pusher *Pusher) {
 		gopCacheEnable: GetServer().gopCacheEnable,
 		gopCache:       make([]*RTPPack, 0),
 
-		cond:  sync.NewCond(&sync.Mutex{}),
-		queue: make([]*RTPPack, 0),
+		//cond:  sync.NewCond(&sync.Mutex{}),
+		queue: make(chan *RTPPack),
 	}
 	client.RTPHandles = append(client.RTPHandles, func(pack *RTPPack) {
 		pusher.QueueRTP(pack)
@@ -168,7 +169,7 @@ func NewClientPusher(client *RTSPClient) (pusher *Pusher) {
 	client.StopHandles = append(client.StopHandles, func() {
 		pusher.ClearPlayer()
 		pusher.Server().RemovePusher(pusher)
-		pusher.cond.Broadcast()
+		//pusher.cond.Broadcast()
 	})
 	return
 }
@@ -181,8 +182,8 @@ func NewPusher(session *Session) (pusher *Pusher) {
 		gopCacheEnable: GetServer().gopCacheEnable,
 		gopCache:       make([]*RTPPack, 0),
 
-		cond:  sync.NewCond(&sync.Mutex{}),
-		queue: make([]*RTPPack, 0),
+		//cond:  sync.NewCond(&sync.Mutex{}),
+		queue: make(chan *RTPPack),
 	}
 	pusher.bindSession(session)
 	return
@@ -204,7 +205,7 @@ func (pusher *Pusher) bindSession(session *Session) {
 		}
 		pusher.ClearPlayer()
 		pusher.Server().RemovePusher(pusher)
-		pusher.cond.Broadcast()
+		//pusher.cond.Broadcast()
 		if pusher.UDPServer != nil {
 			pusher.UDPServer.Stop()
 			pusher.UDPServer = nil
@@ -221,9 +222,9 @@ func (pusher *Pusher) RebindSession(session *Session) bool {
 	pusher.bindSession(session)
 	session.Pusher = pusher
 
-	pusher.gopCacheLock.Lock()
-	pusher.gopCache = make([]*RTPPack, 0)
-	pusher.gopCacheLock.Unlock()
+	//pusher.gopCacheLock.Lock()
+	pusher.gopCache = pusher.gopCache[0:0] //make([]*RTPPack, 0)
+	//pusher.gopCacheLock.Unlock()
 	if sess != nil {
 		sess.Stop()
 	}
@@ -244,10 +245,11 @@ func (pusher *Pusher) RebindClient(client *RTSPClient) bool {
 }
 
 func (pusher *Pusher) QueueRTP(pack *RTPPack) *Pusher {
-	pusher.cond.L.Lock()
-	pusher.queue = append(pusher.queue, pack)
-	pusher.cond.Signal()
-	pusher.cond.L.Unlock()
+	//pusher.cond.L.Lock()
+	pusher.queue <- pack
+	//pusher.queue = append(pusher.queue, pack)
+	//pusher.cond.Signal()
+	//pusher.cond.L.Unlock()
 	return pusher
 }
 
@@ -255,16 +257,17 @@ func (pusher *Pusher) Start() {
 	logger := pusher.Logger()
 	for !pusher.Stoped() {
 		var pack *RTPPack
-		pusher.cond.L.Lock()
-		if len(pusher.queue) == 0 {
-			pusher.cond.Wait()
-		}
-		if len(pusher.queue) > 0 {
-			pack = pusher.queue[0]
-			pusher.queue = pusher.queue[1:]
-		}
-		pusher.cond.L.Unlock()
-		if pack == nil {
+		pack, ok := <-pusher.queue
+		//pusher.cond.L.Lock()
+		//if len(pusher.queue) == 0 {
+		//	pusher.cond.Wait()
+		//}
+		//if len(pusher.queue) > 0 {
+		//	pack = pusher.queue[0]
+		//	pusher.queue = pusher.queue[1:]
+		//}
+		//pusher.cond.L.Unlock()
+		if pack == nil || !ok {
 			if !pusher.Stoped() {
 				logger.Printf("pusher not stoped, but queue take out nil pack")
 			}
@@ -272,12 +275,12 @@ func (pusher *Pusher) Start() {
 		}
 
 		if pusher.gopCacheEnable && pack.Type == RTP_TYPE_VIDEO {
-			pusher.gopCacheLock.Lock()
+			//pusher.gopCacheLock.Lock()
 			if rtp := ParseRTP(pack.Buffer.Bytes()); rtp != nil && pusher.shouldSequenceStart(rtp) {
-				pusher.gopCache = make([]*RTPPack, 0)
+				pusher.gopCache = pusher.gopCache[0:0]
 			}
 			pusher.gopCache = append(pusher.gopCache, pack)
-			pusher.gopCacheLock.Unlock()
+			//pusher.gopCacheLock.Unlock()
 		}
 		pusher.BroadcastRTP(pack)
 	}
@@ -319,12 +322,13 @@ func (pusher *Pusher) HasPlayer(player *Player) bool {
 func (pusher *Pusher) AddPlayer(player *Player) *Pusher {
 	logger := pusher.Logger()
 	if pusher.gopCacheEnable {
-		pusher.gopCacheLock.RLock()
-		for _, pack := range pusher.gopCache {
+		//pusher.gopCacheLock.RLock()
+		packs := pusher.gopCache[:]
+		for _, pack := range packs {
 			player.QueueRTP(pack)
 			pusher.AddOutputBytes(pack.Buffer.Len())
 		}
-		pusher.gopCacheLock.RUnlock()
+		//pusher.gopCacheLock.RUnlock()
 	}
 
 	pusher.playersLock.Lock()
