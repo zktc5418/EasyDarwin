@@ -7,6 +7,8 @@ import (
 	"time"
 )
 
+const MAX_GOP_CACHE_LEN uint = 256
+
 type Pusher struct {
 	*Session
 	*RTSPClient
@@ -220,7 +222,7 @@ func NewClientPusher(client *RTSPClient) (pusher *Pusher) {
 		gopCache:       make([]*RTPPack, 0),
 
 		//cond:  sync.NewCond(&sync.Mutex{}),
-		queue: make(chan *RTPPack),
+		queue: make(chan *RTPPack, MAX_GOP_CACHE_LEN),
 	}
 	client.RTPHandles = append(client.RTPHandles, func(pack *RTPPack) {
 		pusher.QueueRTP(pack)
@@ -251,7 +253,7 @@ func NewPusher(session *Session) (pusher *Pusher) {
 		gopCache:       make([]*RTPPack, 0),
 
 		//cond:  sync.NewCond(&sync.Mutex{}),
-		queue: make(chan *RTPPack),
+		queue: make(chan *RTPPack, MAX_GOP_CACHE_LEN),
 	}
 	pusher.bindSession(session)
 	return
@@ -352,6 +354,9 @@ func (pusher *Pusher) Start() {
 			if rtp := ParseRTP(pack.Buffer.Bytes()); rtp != nil && pusher.shouldSequenceStart(rtp) {
 				pusher.gopCache = pusher.gopCache[0:0]
 			}
+			if l := len(pusher.gopCache); uint(l) >= MAX_GOP_CACHE_LEN {
+				pusher.gopCache = pusher.gopCache[0:0]
+			}
 			pusher.gopCache = append(pusher.gopCache, pack)
 			//pusher.gopCacheLock.Unlock()
 		}
@@ -395,6 +400,13 @@ func (pusher *Pusher) HasPlayer(player *Player) bool {
 
 func (pusher *Pusher) AddPlayer(player *Player) *Pusher {
 	logger := pusher.Logger()
+	pusher.playersLock.Lock()
+	if _, ok := pusher.players[player.ID]; !ok {
+		pusher.players[player.ID] = player
+		go player.Start()
+		logger.Printf("%v start, now player size[%d]", player, len(pusher.players))
+	}
+	pusher.playersLock.Unlock()
 	if pusher.gopCacheEnable {
 		//pusher.gopCacheLock.RLock()
 		packs := pusher.gopCache[:]
@@ -404,14 +416,6 @@ func (pusher *Pusher) AddPlayer(player *Player) *Pusher {
 		}
 		//pusher.gopCacheLock.RUnlock()
 	}
-
-	pusher.playersLock.Lock()
-	if _, ok := pusher.players[player.ID]; !ok {
-		pusher.players[player.ID] = player
-		go player.Start()
-		logger.Printf("%v start, now player size[%d]", player, len(pusher.players))
-	}
-	pusher.playersLock.Unlock()
 	return pusher
 }
 
