@@ -1,15 +1,15 @@
 package rtsp
 
 import (
-	"sync"
+	//"sync"
 	"time"
 )
 
 type Player struct {
 	*Session
-	Pusher               *Pusher
-	cond                 *sync.Cond
-	queue                []*RTPPack
+	Pusher *Pusher
+	//cond                 *sync.Cond
+	queue                chan *RTPPack
 	queueLimit           int
 	dropPacketWhenPaused bool
 	paused               bool
@@ -18,17 +18,18 @@ type Player struct {
 func NewPlayer(session *Session, pusher *Pusher) (player *Player) {
 	server := GetServer()
 	player = &Player{
-		Session:              session,
-		Pusher:               pusher,
-		cond:                 sync.NewCond(&sync.Mutex{}),
-		queue:                make([]*RTPPack, 0),
+		Session: session,
+		Pusher:  pusher,
+		//cond:                 sync.NewCond(&sync.Mutex{}),
+		queue:                make(chan *RTPPack),
 		queueLimit:           server.playerQueueLimit,
 		dropPacketWhenPaused: server.dropPacketWhenPaused,
 		paused:               false,
 	}
 	session.StopHandles = append(session.StopHandles, func() {
 		pusher.RemovePlayer(player)
-		player.cond.Broadcast()
+		close(player.queue)
+		//player.cond.Broadcast()
 	})
 	return
 }
@@ -42,17 +43,17 @@ func (player *Player) QueueRTP(pack *RTPPack) *Player {
 	if player.paused && player.dropPacketWhenPaused {
 		return player
 	}
-	player.cond.L.Lock()
-	player.queue = append(player.queue, pack)
-	if oldLen := len(player.queue); player.queueLimit > 0 && oldLen > player.queueLimit {
-		player.queue = player.queue[1:]
-		if player.debugLogEnable {
-			len := len(player.queue)
-			logger.Printf("Player %s, QueueRTP, exceeds limit(%d), drop %d old packets, current queue.len=%d\n", player.String(), player.queueLimit, oldLen-len, len)
-		}
-	}
-	player.cond.Signal()
-	player.cond.L.Unlock()
+	//player.cond.L.Lock()
+	player.queue <- pack
+	//if oldLen := len(player.queue); player.queueLimit > 0 && oldLen > player.queueLimit {
+	//	player.queue = player.queue[1:]
+	//	if player.debugLogEnable {
+	//		len := len(player.queue)
+	//		logger.Printf("Player %s, QueueRTP, exceeds limit(%d), drop %d old packets, current queue.len=%d\n", player.String(), player.queueLimit, oldLen-len, len)
+	//	}
+	//}
+	//player.cond.Signal()
+	//player.cond.L.Unlock()
 	return player
 }
 
@@ -61,17 +62,18 @@ func (player *Player) Start() {
 	timer := time.Unix(0, 0)
 	for !player.Stoped {
 		var pack *RTPPack
-		player.cond.L.Lock()
-		if len(player.queue) == 0 {
-			player.cond.Wait()
-		}
-		if len(player.queue) > 0 {
-			pack = player.queue[0]
-			player.queue = player.queue[1:]
-		}
-		queueLen := len(player.queue)
-		player.cond.L.Unlock()
-		if player.paused {
+		pack, ok := <-player.queue
+		//player.cond.L.Lock()
+		//if len(player.queue) == 0 {
+		//	player.cond.Wait()
+		//}
+		//if len(player.queue) > 0 {
+		//	pack = player.queue[0]
+		//	player.queue = player.queue[1:]
+		//}
+		//queueLen := len(player.queue)
+		//player.cond.L.Unlock()
+		if player.paused || !ok {
 			continue
 		}
 		if pack == nil {
@@ -85,7 +87,7 @@ func (player *Player) Start() {
 		}
 		elapsed := time.Now().Sub(timer)
 		if player.debugLogEnable && elapsed >= 30*time.Second {
-			logger.Printf("Player %s, Send a package.type:%d, queue.len=%d\n", player.String(), pack.Type, queueLen)
+			logger.Printf("Player %s, Send a package.type:%d, pack.len=%d\n", player.String(), pack.Type, pack.Buffer.Len())
 			timer = time.Now()
 		}
 	}
@@ -97,10 +99,11 @@ func (player *Player) Pause(paused bool) {
 	} else {
 		player.logger.Printf("Player %s, Play\n", player.String())
 	}
-	player.cond.L.Lock()
+	//player.cond.L.Lock()
 	if paused && player.dropPacketWhenPaused && len(player.queue) > 0 {
-		player.queue = make([]*RTPPack, 0)
+		close(player.queue)
+		player.queue = make(chan *RTPPack)
 	}
 	player.paused = paused
-	player.cond.L.Unlock()
+	//player.cond.L.Unlock()
 }

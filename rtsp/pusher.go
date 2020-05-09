@@ -287,6 +287,7 @@ func (pusher *Pusher) Start() {
 }
 
 func (pusher *Pusher) Stop() {
+	close(pusher.queue)
 	if pusher.Session != nil {
 		pusher.Session.Stop()
 		return
@@ -313,9 +314,9 @@ func (pusher *Pusher) GetPlayers() (players map[string]*Player) {
 }
 
 func (pusher *Pusher) HasPlayer(player *Player) bool {
-	pusher.playersLock.Lock()
+	pusher.playersLock.RLock()
 	_, ok := pusher.players[player.ID]
-	pusher.playersLock.Unlock()
+	pusher.playersLock.RUnlock()
 	return ok
 }
 
@@ -356,12 +357,12 @@ func (pusher *Pusher) RemovePlayer(player *Player) *Pusher {
 
 func (pusher *Pusher) ClearPlayer() {
 	// copy a new map to avoid deadlock
-	players := make(map[string]*Player)
+	players := pusher.players
 	pusher.playersLock.Lock()
-	for k, v := range pusher.players {
-		//v.Stop()
-		players[k] = v
-	}
+	//for k, v := range pusher.players {
+	//	//v.Stop()
+	//	players[k] = v
+	//}
 	pusher.players = make(map[string]*Player)
 	pusher.playersLock.Unlock()
 	go func() { // do not block
