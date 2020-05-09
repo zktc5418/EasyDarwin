@@ -10,6 +10,7 @@ import (
 type Pusher struct {
 	*Session
 	*RTSPClient
+	*MulticastConn
 	players        map[string]*Player //SessionID <-> Player
 	playersLock    sync.RWMutex
 	gopCacheEnable bool
@@ -26,12 +27,18 @@ func (pusher *Pusher) String() string {
 	if pusher.Session != nil {
 		return pusher.Session.String()
 	}
+	if pusher.MulticastConn != nil {
+		return pusher.MulticastConn.multiInfo.String()
+	}
 	return pusher.RTSPClient.String()
 }
 
 func (pusher *Pusher) Server() *Server {
 	if pusher.Session != nil {
 		return pusher.Session.Server
+	}
+	if pusher.MulticastConn != nil {
+		return pusher.MulticastConn.Server
 	}
 	return pusher.RTSPClient.Server
 }
@@ -40,12 +47,18 @@ func (pusher *Pusher) SDPRaw() string {
 	if pusher.Session != nil {
 		return pusher.Session.SDPRaw
 	}
+	if pusher.MulticastConn != nil {
+		return pusher.MulticastConn.multiInfo.SDPRaw
+	}
 	return pusher.RTSPClient.SDPRaw
 }
 
 func (pusher *Pusher) Stoped() bool {
 	if pusher.Session != nil {
 		return pusher.Session.Stoped
+	}
+	if pusher.MulticastConn != nil {
+		return pusher.MulticastConn.Stopped
 	}
 	return pusher.RTSPClient.Stoped
 }
@@ -57,12 +70,18 @@ func (pusher *Pusher) Path() string {
 	if pusher.RTSPClient.CustomPath != "" {
 		return pusher.RTSPClient.CustomPath
 	}
+	if pusher.MulticastConn != nil {
+		return pusher.MulticastConn.multiInfo.Path
+	}
 	return pusher.RTSPClient.Path
 }
 
 func (pusher *Pusher) ID() string {
 	if pusher.Session != nil {
 		return pusher.Session.ID
+	}
+	if pusher.MulticastConn != nil {
+		return pusher.MulticastConn.multiInfo.SourceSessionId
 	}
 	return pusher.RTSPClient.ID
 }
@@ -71,12 +90,18 @@ func (pusher *Pusher) Logger() *log.Logger {
 	if pusher.Session != nil {
 		return pusher.Session.logger
 	}
+	if pusher.MulticastConn != nil {
+		return pusher.MulticastConn.logger
+	}
 	return pusher.RTSPClient.logger
 }
 
 func (pusher *Pusher) VCodec() string {
 	if pusher.Session != nil {
 		return pusher.Session.VCodec
+	}
+	if pusher.MulticastConn != nil {
+		return pusher.MulticastConn.VCodec
 	}
 	return pusher.RTSPClient.VCodec
 }
@@ -85,12 +110,18 @@ func (pusher *Pusher) ACodec() string {
 	if pusher.Session != nil {
 		return pusher.Session.ACodec
 	}
+	if pusher.MulticastConn != nil {
+		return pusher.MulticastConn.ACodec
+	}
 	return pusher.RTSPClient.ACodec
 }
 
 func (pusher *Pusher) AControl() string {
 	if pusher.Session != nil {
 		return pusher.Session.AControl
+	}
+	if pusher.MulticastConn != nil {
+		return pusher.MulticastConn.AControl
 	}
 	return pusher.RTSPClient.AControl
 }
@@ -99,12 +130,18 @@ func (pusher *Pusher) VControl() string {
 	if pusher.Session != nil {
 		return pusher.Session.VControl
 	}
+	if pusher.MulticastConn != nil {
+		return pusher.MulticastConn.VControl
+	}
 	return pusher.RTSPClient.VControl
 }
 
 func (pusher *Pusher) URL() string {
 	if pusher.Session != nil {
 		return pusher.Session.URL
+	}
+	if pusher.MulticastConn != nil {
+		return pusher.MulticastConn.multiInfo.SourceUrl
 	}
 	return pusher.RTSPClient.URL
 }
@@ -114,12 +151,19 @@ func (pusher *Pusher) AddOutputBytes(size int) {
 		pusher.Session.OutBytes += size
 		return
 	}
+	if pusher.MulticastConn != nil {
+		pusher.MulticastConn.OutBytes += size
+		return
+	}
 	pusher.RTSPClient.OutBytes += size
 }
 
 func (pusher *Pusher) InBytes() int {
 	if pusher.Session != nil {
 		return pusher.Session.InBytes
+	}
+	if pusher.MulticastConn != nil {
+		return pusher.MulticastConn.InBytes
 	}
 	return pusher.RTSPClient.InBytes
 }
@@ -128,12 +172,18 @@ func (pusher *Pusher) OutBytes() int {
 	if pusher.Session != nil {
 		return pusher.Session.OutBytes
 	}
+	if pusher.MulticastConn != nil {
+		return pusher.MulticastConn.OutBytes
+	}
 	return pusher.RTSPClient.OutBytes
 }
 
 func (pusher *Pusher) TransType() string {
 	if pusher.Session != nil {
 		return pusher.Session.TransType.String()
+	}
+	if pusher.MulticastConn != nil {
+		return pusher.MulticastConn.TransType.String()
 	}
 	return pusher.RTSPClient.TransType.String()
 }
@@ -142,6 +192,9 @@ func (pusher *Pusher) StartAt() time.Time {
 	if pusher.Session != nil {
 		return pusher.Session.StartAt
 	}
+	if pusher.MulticastConn != nil {
+		return pusher.MulticastConn.StartAt
+	}
 	return pusher.RTSPClient.StartAt
 }
 
@@ -149,9 +202,15 @@ func (pusher *Pusher) Source() string {
 	if pusher.Session != nil {
 		return pusher.Session.URL
 	}
+	if pusher.MulticastConn != nil {
+		return pusher.MulticastConn.multiInfo.SourceUrl
+	}
 	return pusher.RTSPClient.URL
 }
 
+/**
+后端手动添加rtsp 拉流
+*/
 func NewClientPusher(client *RTSPClient) (pusher *Pusher) {
 	pusher = &Pusher{
 		RTSPClient:     client,
@@ -166,14 +225,23 @@ func NewClientPusher(client *RTSPClient) (pusher *Pusher) {
 	client.RTPHandles = append(client.RTPHandles, func(pack *RTPPack) {
 		pusher.QueueRTP(pack)
 	})
+	//TODO 添加rtp数据包组播
 	client.StopHandles = append(client.StopHandles, func() {
 		pusher.ClearPlayer()
 		pusher.Server().RemovePusher(pusher)
 		//pusher.cond.Broadcast()
 	})
+	//TODO 发送rtsp组播停止消息
 	return
 }
 
+func NewMulticastPusher(multiInfo *MulticastCommunicateInfo) (pusher *Pusher) {
+
+	//TODO 构造一个从组播接收数据的pusher
+	return nil
+}
+
+//rtsp推流
 func NewPusher(session *Session) (pusher *Pusher) {
 	pusher = &Pusher{
 		Session:        session,
@@ -189,6 +257,9 @@ func NewPusher(session *Session) (pusher *Pusher) {
 	return
 }
 
+//TODO 初始化组播数据发送
+//TODO 初始化组播数据停止发送
+
 func (pusher *Pusher) bindSession(session *Session) {
 	pusher.Session = session
 	session.RTPHandles = append(session.RTPHandles, func(pack *RTPPack) {
@@ -198,6 +269,7 @@ func (pusher *Pusher) bindSession(session *Session) {
 		}
 		pusher.QueueRTP(pack)
 	})
+	//TODO 添加rtp数据包组播
 	session.StopHandles = append(session.StopHandles, func() {
 		if session != pusher.Session {
 			session.logger.Printf("Session stop to release pusher.but pusher got a new session[%v].", pusher.Session.ID)
@@ -211,6 +283,7 @@ func (pusher *Pusher) bindSession(session *Session) {
 			pusher.UDPServer = nil
 		}
 	})
+	//TODO 发送rtsp组播停止消息
 }
 
 func (pusher *Pusher) RebindSession(session *Session) bool {

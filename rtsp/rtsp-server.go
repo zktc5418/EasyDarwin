@@ -39,6 +39,8 @@ type Server struct {
 	rtspTimeoutMillisecond int
 	authorizationEnable    bool
 	closeOld               bool
+	svcDiscoverMultiAddr   string
+	svcDiscoverMultiPort   uint16
 }
 
 var Instance *Server = func() (server *Server) {
@@ -81,6 +83,8 @@ var Instance *Server = func() (server *Server) {
 		rtspTimeoutMillisecond: rtspFile.Key("timeout").MustInt(0),
 		authorizationEnable:    rtspFile.Key("authorization_enable").MustBool(false),
 		closeOld:               rtspFile.Key("close_old").MustBool(false),
+		svcDiscoverMultiAddr:   rtspFile.Key("svc_discover_multiaddr").MustString("239.12.12.12"),
+		svcDiscoverMultiPort:   uint16(rtspFile.Key("svc_discover_multiport").MustUint(1212)),
 	}
 }()
 
@@ -287,6 +291,7 @@ func (server *Server) RemovePusher(pusher *Pusher) {
 	}
 }
 
+//获取推流
 func (server *Server) GetPusher(path string) (pusher *Pusher) {
 	server.pushersLock.RLock()
 	pusher = server.pushers[path]
