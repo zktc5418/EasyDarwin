@@ -12,7 +12,7 @@ const MAX_GOP_CACHE_LEN uint = 256
 type Pusher struct {
 	*Session
 	*RTSPClient
-	*MulticastConn
+	*MulticastClient
 	players        map[string]*Player //SessionID <-> Player
 	playersLock    sync.RWMutex
 	gopCacheEnable bool
@@ -29,8 +29,8 @@ func (pusher *Pusher) String() string {
 	if pusher.Session != nil {
 		return pusher.Session.String()
 	}
-	if pusher.MulticastConn != nil {
-		return pusher.MulticastConn.multiInfo.String()
+	if pusher.MulticastClient != nil {
+		return pusher.MulticastClient.multiInfo.String()
 	}
 	return pusher.RTSPClient.String()
 }
@@ -39,8 +39,8 @@ func (pusher *Pusher) Server() *Server {
 	if pusher.Session != nil {
 		return pusher.Session.Server
 	}
-	if pusher.MulticastConn != nil {
-		return pusher.MulticastConn.Server
+	if pusher.MulticastClient != nil {
+		return pusher.MulticastClient.Server
 	}
 	return pusher.RTSPClient.Server
 }
@@ -49,8 +49,8 @@ func (pusher *Pusher) SDPRaw() string {
 	if pusher.Session != nil {
 		return pusher.Session.SDPRaw
 	}
-	if pusher.MulticastConn != nil {
-		return pusher.MulticastConn.multiInfo.SDPRaw
+	if pusher.MulticastClient != nil {
+		return pusher.MulticastClient.multiInfo.SDPRaw
 	}
 	return pusher.RTSPClient.SDPRaw
 }
@@ -59,8 +59,8 @@ func (pusher *Pusher) Stoped() bool {
 	if pusher.Session != nil {
 		return pusher.Session.Stoped
 	}
-	if pusher.MulticastConn != nil {
-		return pusher.MulticastConn.Stopped
+	if pusher.MulticastClient != nil {
+		return pusher.MulticastClient.Stopped
 	}
 	return pusher.RTSPClient.Stoped
 }
@@ -72,8 +72,8 @@ func (pusher *Pusher) Path() string {
 	if pusher.RTSPClient.CustomPath != "" {
 		return pusher.RTSPClient.CustomPath
 	}
-	if pusher.MulticastConn != nil {
-		return pusher.MulticastConn.multiInfo.Path
+	if pusher.MulticastClient != nil {
+		return pusher.MulticastClient.multiInfo.Path
 	}
 	return pusher.RTSPClient.Path
 }
@@ -82,8 +82,8 @@ func (pusher *Pusher) ID() string {
 	if pusher.Session != nil {
 		return pusher.Session.ID
 	}
-	if pusher.MulticastConn != nil {
-		return pusher.MulticastConn.multiInfo.SourceSessionId
+	if pusher.MulticastClient != nil {
+		return pusher.MulticastClient.multiInfo.SourceSessionId
 	}
 	return pusher.RTSPClient.ID
 }
@@ -92,8 +92,8 @@ func (pusher *Pusher) Logger() *log.Logger {
 	if pusher.Session != nil {
 		return pusher.Session.logger
 	}
-	if pusher.MulticastConn != nil {
-		return pusher.MulticastConn.logger
+	if pusher.MulticastClient != nil {
+		return pusher.MulticastClient.logger
 	}
 	return pusher.RTSPClient.logger
 }
@@ -102,8 +102,8 @@ func (pusher *Pusher) VCodec() string {
 	if pusher.Session != nil {
 		return pusher.Session.VCodec
 	}
-	if pusher.MulticastConn != nil {
-		return pusher.MulticastConn.VCodec
+	if pusher.MulticastClient != nil {
+		return pusher.MulticastClient.VCodec
 	}
 	return pusher.RTSPClient.VCodec
 }
@@ -112,8 +112,8 @@ func (pusher *Pusher) ACodec() string {
 	if pusher.Session != nil {
 		return pusher.Session.ACodec
 	}
-	if pusher.MulticastConn != nil {
-		return pusher.MulticastConn.ACodec
+	if pusher.MulticastClient != nil {
+		return pusher.MulticastClient.ACodec
 	}
 	return pusher.RTSPClient.ACodec
 }
@@ -122,8 +122,8 @@ func (pusher *Pusher) AControl() string {
 	if pusher.Session != nil {
 		return pusher.Session.AControl
 	}
-	if pusher.MulticastConn != nil {
-		return pusher.MulticastConn.AControl
+	if pusher.MulticastClient != nil {
+		return pusher.MulticastClient.AControl
 	}
 	return pusher.RTSPClient.AControl
 }
@@ -132,8 +132,8 @@ func (pusher *Pusher) VControl() string {
 	if pusher.Session != nil {
 		return pusher.Session.VControl
 	}
-	if pusher.MulticastConn != nil {
-		return pusher.MulticastConn.VControl
+	if pusher.MulticastClient != nil {
+		return pusher.MulticastClient.VControl
 	}
 	return pusher.RTSPClient.VControl
 }
@@ -142,8 +142,8 @@ func (pusher *Pusher) URL() string {
 	if pusher.Session != nil {
 		return pusher.Session.URL
 	}
-	if pusher.MulticastConn != nil {
-		return pusher.MulticastConn.multiInfo.SourceUrl
+	if pusher.MulticastClient != nil {
+		return pusher.MulticastClient.multiInfo.SourceUrl
 	}
 	return pusher.RTSPClient.URL
 }
@@ -153,8 +153,8 @@ func (pusher *Pusher) AddOutputBytes(size int) {
 		pusher.Session.OutBytes += size
 		return
 	}
-	if pusher.MulticastConn != nil {
-		pusher.MulticastConn.OutBytes += size
+	if pusher.MulticastClient != nil {
+		pusher.MulticastClient.OutBytes += size
 		return
 	}
 	pusher.RTSPClient.OutBytes += size
@@ -164,8 +164,8 @@ func (pusher *Pusher) InBytes() int {
 	if pusher.Session != nil {
 		return pusher.Session.InBytes
 	}
-	if pusher.MulticastConn != nil {
-		return pusher.MulticastConn.InBytes
+	if pusher.MulticastClient != nil {
+		return pusher.MulticastClient.InBytes
 	}
 	return pusher.RTSPClient.InBytes
 }
@@ -174,8 +174,8 @@ func (pusher *Pusher) OutBytes() int {
 	if pusher.Session != nil {
 		return pusher.Session.OutBytes
 	}
-	if pusher.MulticastConn != nil {
-		return pusher.MulticastConn.OutBytes
+	if pusher.MulticastClient != nil {
+		return pusher.MulticastClient.OutBytes
 	}
 	return pusher.RTSPClient.OutBytes
 }
@@ -184,8 +184,8 @@ func (pusher *Pusher) TransType() string {
 	if pusher.Session != nil {
 		return pusher.Session.TransType.String()
 	}
-	if pusher.MulticastConn != nil {
-		return pusher.MulticastConn.TransType.String()
+	if pusher.MulticastClient != nil {
+		return pusher.MulticastClient.TransType.String()
 	}
 	return pusher.RTSPClient.TransType.String()
 }
@@ -194,8 +194,8 @@ func (pusher *Pusher) StartAt() time.Time {
 	if pusher.Session != nil {
 		return pusher.Session.StartAt
 	}
-	if pusher.MulticastConn != nil {
-		return pusher.MulticastConn.StartAt
+	if pusher.MulticastClient != nil {
+		return pusher.MulticastClient.StartAt
 	}
 	return pusher.RTSPClient.StartAt
 }
@@ -204,8 +204,8 @@ func (pusher *Pusher) Source() string {
 	if pusher.Session != nil {
 		return pusher.Session.URL
 	}
-	if pusher.MulticastConn != nil {
-		return pusher.MulticastConn.multiInfo.SourceUrl
+	if pusher.MulticastClient != nil {
+		return pusher.MulticastClient.multiInfo.SourceUrl
 	}
 	return pusher.RTSPClient.URL
 }
@@ -357,6 +357,7 @@ func (pusher *Pusher) Start() {
 			if l := len(pusher.gopCache); uint(l) >= MAX_GOP_CACHE_LEN {
 				pusher.gopCache = pusher.gopCache[0:0]
 			}
+			logger.Printf("gopCache len:%d", len(pusher.gopCache))
 			pusher.gopCache = append(pusher.gopCache, pack)
 			//pusher.gopCacheLock.Unlock()
 		}

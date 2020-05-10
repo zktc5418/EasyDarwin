@@ -10,20 +10,20 @@ import (
 )
 
 type MulticastCommunicateInfo struct {
-	AudioRtpPort    uint16
-	CtlAudioRtpPort uint16
-	VideoRtpPort    uint16
-	CtlVideoRtpPort uint16
+	AudioRtpPort    uint16 `json:"audio_rtp_port"`
+	CtlAudioRtpPort uint16 `json:"ctl_audio_rtp_port"`
+	VideoRtpPort    uint16 `json:"video_rtp_port"`
+	CtlVideoRtpPort uint16 `json:"ctl_video_rtp_port"`
 
-	AudioRtpMultiAddress    string
-	CtlAudioRtpMultiAddress string
-	VideoRtpMultiAddress    string
-	CtlVideoRtpMultiAddress string
+	AudioRtpMultiAddress    string `json:"audio_rtp_multi_address"`
+	CtlAudioRtpMultiAddress string `json:"ctl_audio_rtp_multi_address"`
+	VideoRtpMultiAddress    string `json:"video_rtp_multi_address"`
+	CtlVideoRtpMultiAddress string `json:"ctl_video_rtp_multi_address"`
 
-	SDPRaw          string
-	Path            string
-	SourceSessionId string
-	SourceUrl       string
+	SDPRaw          string `json:"sdp_raw"`
+	Path            string `json:"path"`
+	SourceSessionId string `json:"source_session_id"`
+	SourceUrl       string `json:"source_url"`
 }
 
 func (multiInfo *MulticastCommunicateInfo) String() string {
@@ -31,7 +31,19 @@ func (multiInfo *MulticastCommunicateInfo) String() string {
 		multiInfo.AudioRtpMultiAddress, multiInfo.AudioRtpPort, multiInfo.VideoRtpMultiAddress, multiInfo.VideoRtpPort)
 }
 
-type MulticastConn struct {
+type MulticastCommandValue int8
+
+const (
+	START_MULTICAST MulticastCommandValue = iota
+	STOP_MULTICAST
+)
+
+type MulticastCommand struct {
+	MultiInfo *MulticastCommunicateInfo `json:"multi_info"`
+	Command   MulticastCommandValue     `json:"command"`
+}
+
+type MulticastClient struct {
 	SessionLogger
 	*Pusher
 	*Server
@@ -53,9 +65,9 @@ type MulticastConn struct {
 	VCodec    string
 }
 
-func StartMulticastListen(pusher *Pusher, multiInfo *MulticastCommunicateInfo) (multiConn *MulticastConn, err error) {
+func StartMulticastListen(pusher *Pusher, multiInfo *MulticastCommunicateInfo) (multiConn *MulticastClient, err error) {
 	server := GetServer()
-	multiConn = &MulticastConn{
+	multiConn = &MulticastClient{
 		SessionLogger: SessionLogger{log.New(os.Stdout, "[RTSPServer]", log.LstdFlags|log.Lshortfile)},
 		Server:        server,
 		Pusher:        pusher,
@@ -78,30 +90,30 @@ func StartMulticastListen(pusher *Pusher, multiInfo *MulticastCommunicateInfo) (
 		multiConn.VControl = sdp.Control
 		multiConn.VCodec = sdp.Codec
 	}
-
+	var conn *net.UDPConn
 	if multiInfo.AudioRtpPort != 0 && multiInfo.AudioRtpMultiAddress != "" {
-		conn, err := multiConn.doMulticastListen(multiInfo.AudioRtpPort, multiInfo.AudioRtpMultiAddress, RTP_TYPE_AUDIO)
+		conn, err = multiConn.doMulticastListen(multiInfo.AudioRtpPort, multiInfo.AudioRtpMultiAddress, RTP_TYPE_AUDIO)
 		if err != nil {
 			return
 		}
 		multiConn.AConn = conn
 	}
 	if multiInfo.CtlAudioRtpPort != 0 && multiInfo.CtlAudioRtpMultiAddress != "" {
-		conn, err := multiConn.doMulticastListen(multiInfo.CtlAudioRtpPort, multiInfo.CtlAudioRtpMultiAddress, RTP_TYPE_AUDIOCONTROL)
+		conn, err = multiConn.doMulticastListen(multiInfo.CtlAudioRtpPort, multiInfo.CtlAudioRtpMultiAddress, RTP_TYPE_AUDIOCONTROL)
 		if err != nil {
 			return
 		}
 		multiConn.AControlConn = conn
 	}
 	if multiInfo.VideoRtpPort != 0 && multiInfo.VideoRtpMultiAddress != "" {
-		conn, err := multiConn.doMulticastListen(multiInfo.VideoRtpPort, multiInfo.VideoRtpMultiAddress, RTP_TYPE_VIDEO)
+		conn, err = multiConn.doMulticastListen(multiInfo.VideoRtpPort, multiInfo.VideoRtpMultiAddress, RTP_TYPE_VIDEO)
 		if err != nil {
 			return
 		}
 		multiConn.VConn = conn
 	}
 	if multiInfo.CtlVideoRtpPort != 0 && multiInfo.CtlVideoRtpMultiAddress != "" {
-		conn, err := multiConn.doMulticastListen(multiInfo.CtlVideoRtpPort, multiInfo.CtlVideoRtpMultiAddress, RTP_TYPE_VIDEOCONTROL)
+		conn, err = multiConn.doMulticastListen(multiInfo.CtlVideoRtpPort, multiInfo.CtlVideoRtpMultiAddress, RTP_TYPE_VIDEOCONTROL)
 		if err != nil {
 			return
 		}
@@ -110,22 +122,26 @@ func StartMulticastListen(pusher *Pusher, multiInfo *MulticastCommunicateInfo) (
 	return
 }
 
-func (multiConn *MulticastConn) AddInputBytes(inputLength int) {
+func (multiConn *MulticastClient) AddInputBytes(inputLength int) {
 	multiConn.InBytes += inputLength
 }
 
-func (multiConn *MulticastConn) HandleRTP(pack *RTPPack) {
+func (multiConn *MulticastClient) HandleRTP(pack *RTPPack) {
 	multiConn.Pusher.queue <- pack
 }
 
-func (multiConn *MulticastConn) doMulticastListen(port uint16, multiAddr string, rType RTPType) (conn *net.UDPConn, err error) {
+func (multiConn *MulticastClient) Stop() {
+	//TODO 移除pusher、停止推拉组播数据流
+}
+
+func (multiConn *MulticastClient) doMulticastListen(port uint16, multiAddr string, rType RTPType) (conn *net.UDPConn, err error) {
 
 	multiUdpAddr, err := net.ResolveUDPAddr("udp", fmt.Sprint(multiAddr, ":", port))
 	if err != nil {
 		multiConn.logger.Printf("multicast[%s:%d] conn set write buffer error, %v", multiAddr, port, err)
 		return
 	}
-	conn, err = net.ListenMulticastUDP("udp", nil, multiUdpAddr)
+	conn, err = net.ListenMulticastUDP("udp", multiConn.Server.multicastBindInf, multiUdpAddr)
 	if err != nil {
 		multiConn.logger.Printf("multicast[%s:%d] conn set write buffer error, %v", multiAddr, port, err)
 		return

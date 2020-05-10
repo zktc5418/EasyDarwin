@@ -41,6 +41,9 @@ type Server struct {
 	closeOld               bool
 	svcDiscoverMultiAddr   string
 	svcDiscoverMultiPort   uint16
+	enableMulticast        bool
+	multicastAddr          string
+	multicastBindInf       *net.Interface
 }
 
 var Instance *Server = func() (server *Server) {
@@ -62,6 +65,11 @@ var Instance *Server = func() (server *Server) {
 	ffmpeg := rtspFile.Key("ffmpeg_path").MustString("")
 	m3u8_dir_path := rtspFile.Key("m3u8_dir_path").MustString("")
 	ts_duration_second := rtspFile.Key("ts_duration_second").MustInt(6)
+	infName := rtspFile.Key("multicast_svc_bind_inf").MustString("")
+	var multicastBindInf *net.Interface = nil
+	if infName != "" {
+		multicastBindInf, _ = net.InterfaceByName(infName)
+	}
 	return &Server{
 		SessionLogger:          logger,
 		Stoped:                 true,
@@ -85,6 +93,9 @@ var Instance *Server = func() (server *Server) {
 		closeOld:               rtspFile.Key("close_old").MustBool(false),
 		svcDiscoverMultiAddr:   rtspFile.Key("svc_discover_multiaddr").MustString("239.12.12.12"),
 		svcDiscoverMultiPort:   uint16(rtspFile.Key("svc_discover_multiport").MustUint(1212)),
+		enableMulticast:        rtspFile.Key("enable_multicast").MustBool(false),
+		multicastAddr:          rtspFile.Key("multicast_svc_discover_addr").MustString("232.2.2.2:8760"),
+		multicastBindInf:       multicastBindInf,
 	}
 }()
 
