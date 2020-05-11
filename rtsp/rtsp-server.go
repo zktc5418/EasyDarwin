@@ -45,6 +45,7 @@ type Server struct {
 	multicastAddr          string
 	multicastBindInf       *net.Interface
 	mserver                *MulticastServer
+	pushCmd                []string
 }
 
 var Instance *Server = func() (server *Server) {
@@ -70,6 +71,16 @@ var Instance *Server = func() (server *Server) {
 	var multicastBindInf *net.Interface = nil
 	if infName != "" {
 		multicastBindInf, _ = net.InterfaceByName(infName)
+	}
+	cmdKeys := utils.Conf().Section("cmd").Keys()
+	var cmds []string
+	for _, key := range cmdKeys {
+		if strings.HasPrefix(key.Name(), "execute_") {
+			cmds = append(cmds, key.Value())
+		}
+	}
+	if len(cmds) > 0 {
+		logger.logger.Printf("pusher cmds: \n %s", strings.Join(cmds, "\n"))
 	}
 	server = &Server{
 		SessionLogger:          logger,
@@ -97,6 +108,7 @@ var Instance *Server = func() (server *Server) {
 		enableMulticast:        rtspFile.Key("enable_multicast").MustBool(false),
 		multicastAddr:          rtspFile.Key("multicast_svc_discover_addr").MustString("232.2.2.2:8760"),
 		multicastBindInf:       multicastBindInf,
+		pushCmd:                cmds,
 	}
 
 	return
@@ -140,6 +152,7 @@ func (server *Server) Start() (err error) {
 	}
 	go func() { // save to local.
 		pusher2ffmpegMap := make(map[*Pusher]*exec.Cmd)
+		pusher2CmdMap := make(map[*Pusher][]*exec.Cmd)
 		if SaveStreamToLocal {
 			logger.Printf("Prepare to save stream to local....")
 			defer logger.Printf("End save stream to local....")
@@ -184,6 +197,24 @@ func (server *Server) Start() (err error) {
 						logger.Printf("addPusherChan closed")
 					}
 				}
+				if len(server.pushCmd) > 0 && pusher.MulticastClient == nil {
+					var cmds []*exec.Cmd
+					for _, cmdRaw := range server.pushCmd {
+						cmd := strings.ReplaceAll(cmdRaw, "{path}", pusher.Path())
+						execCmd := exec.Command(cmd)
+						f, err := os.OpenFile(path.Join(utils.CWD(), fmt.Sprintf("exec.log")), os.O_RDWR|os.O_CREATE, 0755)
+						if err == nil {
+							execCmd.Stdout = f
+							execCmd.Stderr = f
+						}
+						err = execCmd.Start()
+						if err != nil {
+							logger.Printf("Start exec err:%v", err)
+						}
+						cmds = append(cmds, execCmd)
+					}
+					pusher2CmdMap[pusher] = cmds
+				}
 			case pusher, removeChnOk = <-server.removePusherCh:
 				if SaveStreamToLocal {
 					if removeChnOk {
@@ -215,6 +246,16 @@ func (server *Server) Start() (err error) {
 						pusher2ffmpegMap = make(map[*Pusher]*exec.Cmd)
 						logger.Printf("removePusherChan closed")
 					}
+				}
+				if len(server.pushCmd) > 0 && pusher.MulticastClient == nil {
+					for _, cmd := range pusher2CmdMap[pusher] {
+						proc := cmd.Process
+						if proc != nil {
+							logger.Printf("prepare to SIGTERM to process:%v", proc)
+							proc.Signal(syscall.SIGTERM)
+						}
+					}
+					delete(pusher2CmdMap, pusher)
 				}
 			}
 		}
