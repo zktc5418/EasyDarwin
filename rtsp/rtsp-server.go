@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -200,8 +201,18 @@ func (server *Server) Start() (err error) {
 				if len(server.pushCmd) > 0 && pusher.MulticastClient == nil {
 					var cmds []*exec.Cmd
 					for _, cmdRaw := range server.pushCmd {
-						cmd := strings.ReplaceAll(cmdRaw, "{path}", pusher.Path())
-						execCmd := exec.Command(cmd)
+						cmd := strings.ReplaceAll(cmdRaw, "{path}", strings.TrimLeft(pusher.Path(), "/"))
+						cmd = strings.TrimLeft(strings.TrimSpace(cmd), "ffmpeg")
+						reg, _ := regexp.Compile("[ ]+")
+						parametersRaw := reg.Split(cmd, -1)
+						var parameters []string
+						for _, parameter := range parametersRaw {
+							if parameter != "" {
+								parameters = append(parameters, parameter)
+							}
+						}
+						logger.Println(parameters)
+						execCmd := exec.Command(ffmpeg, parameters...)
 						f, err := os.OpenFile(path.Join(utils.CWD(), fmt.Sprintf("exec.log")), os.O_RDWR|os.O_CREATE, 0755)
 						if err == nil {
 							execCmd.Stdout = f
