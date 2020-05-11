@@ -13,7 +13,6 @@ import (
 
 type MulticastServer struct {
 	*SessionLogger
-	*Server
 
 	cache       *ttlcache.Cache
 	pusherCache *ttlcache.Cache
@@ -24,7 +23,6 @@ type MulticastServer struct {
 func InitializeMulticastServer() (mserver *MulticastServer, err error) {
 	server := GetServer()
 	mserver = &MulticastServer{
-		Server:  server,
 		stopped: false,
 		SessionLogger: &SessionLogger{
 			logger: log.New(os.Stdout, fmt.Sprintf("multicastServer[%s]", server.multicastAddr), log.LstdFlags|log.Lshortfile),

@@ -361,6 +361,7 @@ func (pusher *Pusher) bindSession(session *Session) {
 			Path:            session.Path,
 			SourceSessionId: session.ID,
 		}
+		session.multicastInfo = multicastInfo
 		if session.AControl != "" {
 			session.multicastInfo.AudioRtpMultiAddress, session.multicastInfo.AudioRtpPort = RandomMulticastAddress()
 			session.multicastInfo.CtlAudioRtpMultiAddress, session.multicastInfo.CtlAudioRtpPort = RandomMulticastAddress()
@@ -369,7 +370,6 @@ func (pusher *Pusher) bindSession(session *Session) {
 			session.multicastInfo.VideoRtpMultiAddress, session.multicastInfo.VideoRtpPort = RandomMulticastAddress()
 			session.multicastInfo.CtlVideoRtpMultiAddress, session.multicastInfo.CtlVideoRtpPort = RandomMulticastAddress()
 		}
-		session.multicastInfo = multicastInfo
 
 		session.RTPHandles = append(session.RTPHandles, func(pack *RTPPack) {
 			//发送rtp组播包

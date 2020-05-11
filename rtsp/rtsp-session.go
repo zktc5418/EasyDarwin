@@ -436,13 +436,13 @@ func (session *Session) handleRequest(req *Request) {
 		session.Type = SESSION_TYPE_PUSHER
 		session.URL = req.URL
 
-		url, err := url.Parse(req.URL)
+		surl, err := url.Parse(req.URL)
 		if err != nil {
 			res.StatusCode = 500
 			res.Status = "Invalid URL"
 			return
 		}
-		session.Path = url.Path
+		session.Path = surl.Path
 
 		session.SDPRaw = req.Body
 		session.SDPMap = ParseSDP(req.Body)

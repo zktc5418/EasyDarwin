@@ -10,6 +10,7 @@ require (
 	github.com/bruce-qin/EasyGoLib v0.0.0-20200509162320-0e47b9d4cc26
 	github.com/common-nighthawk/go-figure v0.0.0-20190529165535-67e0ed34491a
 	github.com/eiannone/keyboard v0.0.0-20200508000154-caf4b762e807 // indirect
+	github.com/emirpasic/gods v1.12.0
 	github.com/gin-contrib/cors v1.3.1
 	github.com/gin-contrib/pprof v1.3.0
 	github.com/gin-contrib/sse v0.1.0 // indirect

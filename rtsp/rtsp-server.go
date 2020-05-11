@@ -71,11 +71,7 @@ var Instance *Server = func() (server *Server) {
 	if infName != "" {
 		multicastBindInf, _ = net.InterfaceByName(infName)
 	}
-	mserver, err := InitializeMulticastServer()
-	if err != nil {
-		logger.logger.Printf("InitializeMulticastServer error : %v", err)
-	}
-	return &Server{
+	server = &Server{
 		SessionLogger:          logger,
 		Stoped:                 true,
 		TCPPort:                rtspFile.Key("port").MustInt(554),
@@ -101,12 +97,21 @@ var Instance *Server = func() (server *Server) {
 		enableMulticast:        rtspFile.Key("enable_multicast").MustBool(false),
 		multicastAddr:          rtspFile.Key("multicast_svc_discover_addr").MustString("232.2.2.2:8760"),
 		multicastBindInf:       multicastBindInf,
-		mserver:                mserver,
 	}
+
+	return
 }()
 
 func GetServer() *Server {
 	return Instance
+}
+
+func init() {
+	var err error
+	GetServer().mserver, err = InitializeMulticastServer()
+	if err != nil {
+		Instance.logger.Printf("InitializeMulticastServer error : %v", err)
+	}
 }
 
 func (server *Server) Start() (err error) {

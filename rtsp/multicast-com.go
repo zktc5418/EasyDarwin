@@ -13,20 +13,20 @@ import (
 )
 
 type MulticastCommunicateInfo struct {
-	AudioRtpPort    uint16 `json:"audio_rtp_port"`
-	CtlAudioRtpPort uint16 `json:"ctl_audio_rtp_port"`
-	VideoRtpPort    uint16 `json:"video_rtp_port"`
-	CtlVideoRtpPort uint16 `json:"ctl_video_rtp_port"`
+	AudioRtpPort    uint16 `json:"aPort"`
+	CtlAudioRtpPort uint16 `json:"caPort"`
+	VideoRtpPort    uint16 `json:"vPort"`
+	CtlVideoRtpPort uint16 `json:"cvPort"`
 
-	AudioRtpMultiAddress    string `json:"audio_rtp_multi_address"`
-	CtlAudioRtpMultiAddress string `json:"ctl_audio_rtp_multi_address"`
-	VideoRtpMultiAddress    string `json:"video_rtp_multi_address"`
-	CtlVideoRtpMultiAddress string `json:"ctl_video_rtp_multi_address"`
+	AudioRtpMultiAddress    string `json:"aAddr"`
+	CtlAudioRtpMultiAddress string `json:"caAddr"`
+	VideoRtpMultiAddress    string `json:"vAddr"`
+	CtlVideoRtpMultiAddress string `json:"cvAddr"`
 
-	SDPRaw          string `json:"sdp_raw"`
+	SDPRaw          string `json:"sdp"`
 	Path            string `json:"path"`
-	SourceSessionId string `json:"source_session_id"`
-	SourceUrl       string `json:"source_url"`
+	SourceSessionId string `json:"id"`
+	SourceUrl       string `json:"url"`
 }
 
 var existMulticastAddresses = hashset.New()
@@ -35,7 +35,7 @@ var setLock = sync.RWMutex{}
 func RandomMulticastAddress() (multicastAddr string, port uint16) {
 	setLock.Lock()
 	for {
-		multicastAddr, port := utils.RandomMulticastAddress()
+		multicastAddr, port = utils.RandomMulticastAddress()
 		fmtAddr := fmt.Sprint(multicastAddr, ":", port)
 		if !existMulticastAddresses.Contains(fmtAddr) {
 			existMulticastAddresses.Add(fmtAddr)
@@ -68,8 +68,8 @@ const (
 )
 
 type MulticastCommand struct {
-	MultiInfo *MulticastCommunicateInfo `json:"multi_info"`
-	Command   MulticastCommandValue     `json:"command"`
+	MultiInfo *MulticastCommunicateInfo `json:"mulInf"`
+	Command   MulticastCommandValue     `json:"cmd"`
 }
 
 type MulticastClient struct {
