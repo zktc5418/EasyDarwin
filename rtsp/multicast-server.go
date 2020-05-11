@@ -14,10 +14,11 @@ import (
 type MulticastServer struct {
 	*SessionLogger
 
-	cache       *ttlcache.Cache
-	pusherCache *ttlcache.Cache
-	conn        *net.UDPConn
-	stopped     bool
+	cache        *ttlcache.Cache
+	pusherCache  *ttlcache.Cache
+	conn         *net.UDPConn
+	multiCmdAddr *net.UDPAddr
+	stopped      bool
 }
 
 func InitializeMulticastServer() (mserver *MulticastServer, err error) {
@@ -39,6 +40,7 @@ func InitializeMulticastServer() (mserver *MulticastServer, err error) {
 	if err != nil {
 		return
 	}
+	mserver.multiCmdAddr = addr
 	mserver.conn = conn
 	mserver.cache = ttlcache.NewCache()
 	mserver.pusherCache = ttlcache.NewCache()
@@ -107,7 +109,7 @@ func (mserver *MulticastServer) SendMulticastCommandData(multiCommand *Multicast
 		mserver.logger.Printf("json serialize error：%v \n", err)
 	}
 	conn := mserver.conn
-	_, err = conn.Write(bytes)
+	_, err = conn.WriteToUDP(bytes, mserver.multiCmdAddr)
 	if err != nil {
 		mserver.logger.Println("multicast server send MulticastCommand pack error", err)
 	}
