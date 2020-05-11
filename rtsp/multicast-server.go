@@ -15,9 +15,10 @@ type MulticastServer struct {
 	*SessionLogger
 	*Server
 
-	cache   *ttlcache.Cache
-	conn    *net.UDPConn
-	stopped bool
+	cache       *ttlcache.Cache
+	pusherCache *ttlcache.Cache
+	conn        *net.UDPConn
+	stopped     bool
 }
 
 func InitializeMulticastServer() (mserver *MulticastServer, err error) {
@@ -42,6 +43,13 @@ func InitializeMulticastServer() (mserver *MulticastServer, err error) {
 	}
 	mserver.conn = conn
 	mserver.cache = ttlcache.NewCache()
+	mserver.pusherCache = ttlcache.NewCache()
+	mserver.pusherCache.SetExpirationCallback(func(path string, pusher interface{}) {
+		storedPusher := server.GetPusher(path)
+		if storedPusher != nil {
+			storedPusher.Stop()
+		}
+	})
 	go func() {
 		logger := mserver.logger
 		bufUDP := make([]byte, UDP_BUF_SIZE)
@@ -65,9 +73,12 @@ func InitializeMulticastServer() (mserver *MulticastServer, err error) {
 				}
 				if multiCommand.Command == START_MULTICAST {
 					if pusher := server.GetPusher(multiCommand.MultiInfo.Path); pusher != nil {
+						mserver.pusherCache.Get(multiCommand.MultiInfo.Path)
 						continue
 					}
 					pusher := NewMulticastPusher(multiCommand.MultiInfo)
+					//60秒未收到数据则停止pusher
+					mserver.pusherCache.SetWithTTL(multiCommand.MultiInfo.Path, pusher, time.Duration(60)*time.Second)
 					success := server.AddPusher(pusher)
 					if success {
 						logger.Printf("add multicast pusher success :%v", multiCommand.MultiInfo)
@@ -77,6 +88,7 @@ func InitializeMulticastServer() (mserver *MulticastServer, err error) {
 				} else if multiCommand.Command == STOP_MULTICAST {
 					if pusher := server.GetPusher(multiCommand.MultiInfo.Path); pusher != nil {
 						pusher.Stop()
+						mserver.pusherCache.Remove(multiCommand.MultiInfo.Path)
 					}
 				}
 			} else {
