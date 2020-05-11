@@ -3,9 +3,12 @@ package rtsp
 import (
 	"bytes"
 	"fmt"
+	"github.com/bruce-qin/EasyGoLib/utils"
+	"github.com/emirpasic/gods/sets/hashset"
 	"log"
 	"net"
 	"os"
+	"sync"
 	"time"
 )
 
@@ -24,6 +27,32 @@ type MulticastCommunicateInfo struct {
 	Path            string `json:"path"`
 	SourceSessionId string `json:"source_session_id"`
 	SourceUrl       string `json:"source_url"`
+}
+
+var existMulticastAddresses = hashset.New()
+var setLock = sync.RWMutex{}
+
+func RandomMulticastAddress() (multicastAddr string, port uint16) {
+	setLock.Lock()
+	for {
+		multicastAddr, port := utils.RandomMulticastAddress()
+		fmtAddr := fmt.Sprint(multicastAddr, ":", port)
+		if !existMulticastAddresses.Contains(fmtAddr) {
+			existMulticastAddresses.Add(fmtAddr)
+			setLock.Unlock()
+			return
+		}
+	}
+}
+func AddExistMulticastAddress(multicastAddr string, port uint16) {
+	setLock.Lock()
+	existMulticastAddresses.Add(fmt.Sprint(multicastAddr, ":", port))
+	setLock.Unlock()
+}
+func ReleaseMulticastAddress(multicastAddr string, port uint16) {
+	setLock.Lock()
+	existMulticastAddresses.Remove(fmt.Sprint(multicastAddr, ":", port))
+	setLock.Unlock()
 }
 
 func (multiInfo *MulticastCommunicateInfo) String() string {
@@ -63,6 +92,9 @@ type MulticastClient struct {
 	ACodec    string
 	VControl  string
 	VCodec    string
+
+	RTPHandles  []func(*RTPPack)
+	StopHandles []func()
 }
 
 func StartMulticastListen(pusher *Pusher, multiInfo *MulticastCommunicateInfo) (multiConn *MulticastClient, err error) {
@@ -73,11 +105,13 @@ func StartMulticastListen(pusher *Pusher, multiInfo *MulticastCommunicateInfo) (
 		Pusher:        pusher,
 		multiInfo:     multiInfo,
 
-		StartAt:   time.Now(),
-		Stopped:   false,
-		OutBytes:  0,
-		InBytes:   0,
-		TransType: TRANS_TYPE_UDP,
+		StartAt:     time.Now(),
+		Stopped:     false,
+		OutBytes:    0,
+		InBytes:     0,
+		TransType:   TRANS_TYPE_UDP,
+		RTPHandles:  make([]func(*RTPPack), 0),
+		StopHandles: make([]func(), 0),
 	}
 	sdpMap := ParseSDP(multiInfo.SDPRaw)
 	sdp, ok := sdpMap["audio"]
@@ -127,11 +161,35 @@ func (multiConn *MulticastClient) AddInputBytes(inputLength int) {
 }
 
 func (multiConn *MulticastClient) HandleRTP(pack *RTPPack) {
-	multiConn.Pusher.queue <- pack
+	for _, h := range multiConn.RTPHandles {
+		h(pack)
+	}
 }
 
 func (multiConn *MulticastClient) Stop() {
-	//TODO 移除pusher、停止推拉组播数据流
+	if multiConn.Stopped {
+		return
+	}
+	multiConn.Stopped = true
+	for _, h := range multiConn.StopHandles {
+		h()
+	}
+	if multiConn.AConn != nil {
+		_ = multiConn.AConn.Close()
+		multiConn.AConn = nil
+	}
+	if multiConn.AControlConn != nil {
+		_ = multiConn.AControlConn.Close()
+		multiConn.AControlConn = nil
+	}
+	if multiConn.VConn != nil {
+		_ = multiConn.VConn.Close()
+		multiConn.VConn = nil
+	}
+	if multiConn.VControlConn != nil {
+		_ = multiConn.VControlConn.Close()
+		multiConn.VControlConn = nil
+	}
 }
 
 func (multiConn *MulticastClient) doMulticastListen(port uint16, multiAddr string, rType RTPType) (conn *net.UDPConn, err error) {
@@ -152,6 +210,8 @@ func (multiConn *MulticastClient) doMulticastListen(port uint16, multiAddr strin
 		bufUDP := make([]byte, UDP_BUF_SIZE)
 		logger.Printf("multicast start listen address port[%s:%d]", multiAddr, port)
 		defer logger.Printf("multicast stop listen address port[%s:%d]", multiAddr, port)
+		defer ReleaseMulticastAddress(multiAddr, port)
+		AddExistMulticastAddress(multiAddr, port)
 		timer := time.Unix(0, 0)
 		for !multiConn.Stopped {
 			if n, _, err := conn.ReadFromUDP(bufUDP); err == nil {
@@ -176,5 +236,3 @@ func (multiConn *MulticastClient) doMulticastListen(port uint16, multiAddr strin
 	}()
 	return
 }
-
-//TODO 初始化组播数据接收，新增pusher、结束pusher

@@ -44,6 +44,7 @@ type Server struct {
 	enableMulticast        bool
 	multicastAddr          string
 	multicastBindInf       *net.Interface
+	mserver                *MulticastServer
 }
 
 var Instance *Server = func() (server *Server) {
@@ -69,6 +70,10 @@ var Instance *Server = func() (server *Server) {
 	var multicastBindInf *net.Interface = nil
 	if infName != "" {
 		multicastBindInf, _ = net.InterfaceByName(infName)
+	}
+	mserver, err := InitializeMulticastServer()
+	if err != nil {
+		logger.logger.Printf("InitializeMulticastServer error : %v", err)
 	}
 	return &Server{
 		SessionLogger:          logger,
@@ -96,6 +101,7 @@ var Instance *Server = func() (server *Server) {
 		enableMulticast:        rtspFile.Key("enable_multicast").MustBool(false),
 		multicastAddr:          rtspFile.Key("multicast_svc_discover_addr").MustString("232.2.2.2:8760"),
 		multicastBindInf:       multicastBindInf,
+		mserver:                mserver,
 	}
 }()
 

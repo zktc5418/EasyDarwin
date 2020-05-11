@@ -126,6 +126,10 @@ type Session struct {
 	vRTPChannel        int
 	vRTPControlChannel int
 
+	multicastInfo       *MulticastCommunicateInfo
+	multicastLastBoard  time.Time
+	multicastBoardTimes int
+
 	Pusher      *Pusher
 	Player      *Player
 	UDPClient   *UDPClient
@@ -163,6 +167,7 @@ func NewSession(server *Server, conn net.Conn) *Session {
 	if !utils.Debug {
 		session.logger.SetOutput(utils.GetLogWriter())
 	}
+
 	return session
 }
 

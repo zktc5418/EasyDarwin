@@ -26,6 +26,9 @@ import (
 type RTSPClient struct {
 	Server *Server
 	SessionLogger
+	multicastInfo        *MulticastCommunicateInfo
+	multicastLastBoard   time.Time
+	multicastBoardTimes  int
 	Stoped               bool
 	Status               string
 	URL                  string
@@ -89,11 +92,19 @@ func NewRTSPClient(server *Server, rawUrl string, sendOptionMillis int64, agent 
 		StartAt:              time.Now(),
 		Agent:                agent,
 		debugLogEnable:       GetServer().debugLogEnable,
+		multicastBoardTimes:  -1,
 	}
 	client.logger = log.New(os.Stdout, fmt.Sprintf("[%s]", client.ID), log.LstdFlags|log.Lshortfile)
 	if !utils.Debug {
 		client.logger.SetOutput(utils.GetLogWriter())
 	}
+	multicastInfo := &MulticastCommunicateInfo{
+		SDPRaw:          client.SDPRaw,
+		SourceUrl:       client.URL,
+		Path:            client.Path,
+		SourceSessionId: client.ID,
+	}
+	client.multicastInfo = multicastInfo
 	return
 }
 
@@ -500,6 +511,14 @@ func (client *RTSPClient) Start(timeout time.Duration) (err error) {
 	err = client.requestStream(timeout)
 	if err != nil {
 		return
+	}
+	if client.AControl != "" {
+		client.multicastInfo.AudioRtpMultiAddress, client.multicastInfo.AudioRtpPort = RandomMulticastAddress()
+		client.multicastInfo.CtlAudioRtpMultiAddress, client.multicastInfo.CtlAudioRtpPort = RandomMulticastAddress()
+	}
+	if client.VControl != "" {
+		client.multicastInfo.VideoRtpMultiAddress, client.multicastInfo.VideoRtpPort = RandomMulticastAddress()
+		client.multicastInfo.CtlVideoRtpMultiAddress, client.multicastInfo.CtlVideoRtpPort = RandomMulticastAddress()
 	}
 	go client.startStream()
 	return

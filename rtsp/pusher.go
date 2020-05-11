@@ -227,20 +227,89 @@ func NewClientPusher(client *RTSPClient) (pusher *Pusher) {
 	client.RTPHandles = append(client.RTPHandles, func(pack *RTPPack) {
 		pusher.QueueRTP(pack)
 	})
-	//TODO 添加rtp数据包组播
 	client.StopHandles = append(client.StopHandles, func() {
 		pusher.ClearPlayer()
 		pusher.Server().RemovePusher(pusher)
 		//pusher.cond.Broadcast()
 	})
-	//TODO 发送rtsp组播停止消息
+	//
+	server := client.Server
+	if server.enableMulticast {
+		client.RTPHandles = append(client.RTPHandles, func(pack *RTPPack) {
+			//发送rtp组播包
+			if server.mserver != nil {
+				server.mserver.SendMulticastRtpPack(pack, client.multicastInfo)
+			}
+		}, func(pack *RTPPack) {
+			//发送推流服务通信包
+			multiCommand := &MulticastCommand{
+				Command:   START_MULTICAST,
+				MultiInfo: client.multicastInfo,
+			}
+			send := false
+			if client.multicastBoardTimes == -1 {
+				server.mserver.SendMulticastCommandData(multiCommand)
+				send = true
+			} else if client.multicastBoardTimes < 5 && client.multicastLastBoard.Add(time.Duration(1<<client.multicastBoardTimes)*time.Second).Before(time.Now()) {
+				//前五次发送指数间隔指数递增
+				server.mserver.SendMulticastCommandData(multiCommand)
+				send = true
+			} else if client.multicastLastBoard.Add(time.Duration(20) * time.Second).Before(time.Now()) {
+				//后续每隔20秒发送一次
+				server.mserver.SendMulticastCommandData(multiCommand)
+				send = true
+			}
+			if send {
+				client.multicastBoardTimes++
+				client.multicastLastBoard = time.Now()
+			}
+		})
+
+		client.StopHandles = append(client.StopHandles, func() {
+			go func() {
+				//发送推流服务通信包
+				multiCommand := &MulticastCommand{
+					Command:   STOP_MULTICAST,
+					MultiInfo: client.multicastInfo,
+				}
+				for i := -1; i < 10; i++ {
+					if i > -1 && i < 4 {
+						time.Sleep(time.Duration(1<<i) * time.Second)
+					} else if i >= 4 {
+						time.Sleep(time.Duration(10) * time.Second)
+					}
+					if server.GetPusher(client.Path) != nil {
+						//有新的相同的推流地址，停止发送停止推流命令，并退出
+						break
+					}
+					server.mserver.SendMulticastCommandData(multiCommand)
+				}
+			}()
+		})
+	}
 	return
 }
 
 func NewMulticastPusher(multiInfo *MulticastCommunicateInfo) (pusher *Pusher) {
+	pusher = &Pusher{
+		RTSPClient:     nil,
+		players:        make(map[string]*Player),
+		gopCacheEnable: GetServer().gopCacheEnable,
+		gopCache:       make([]*RTPPack, 0),
 
-	//TODO 构造一个从组播接收数据的pusher
-	return nil
+		//cond:  sync.NewCond(&sync.Mutex{}),
+		queue: make(chan *RTPPack, MAX_GOP_CACHE_LEN),
+	}
+	multicastClient, _ := StartMulticastListen(pusher, multiInfo)
+	pusher.MulticastClient = multicastClient
+	multicastClient.RTPHandles = append(multicastClient.RTPHandles, func(pack *RTPPack) {
+		pusher.QueueRTP(pack)
+	})
+	multicastClient.StopHandles = append(multicastClient.StopHandles, func() {
+		pusher.ClearPlayer()
+		pusher.Server().RemovePusher(pusher)
+	})
+	return pusher
 }
 
 //rtsp推流
@@ -259,9 +328,6 @@ func NewPusher(session *Session) (pusher *Pusher) {
 	return
 }
 
-//TODO 初始化组播数据发送
-//TODO 初始化组播数据停止发送
-
 func (pusher *Pusher) bindSession(session *Session) {
 	pusher.Session = session
 	session.RTPHandles = append(session.RTPHandles, func(pack *RTPPack) {
@@ -271,7 +337,6 @@ func (pusher *Pusher) bindSession(session *Session) {
 		}
 		pusher.QueueRTP(pack)
 	})
-	//TODO 添加rtp数据包组播
 	session.StopHandles = append(session.StopHandles, func() {
 		if session != pusher.Session {
 			session.logger.Printf("Session stop to release pusher.but pusher got a new session[%v].", pusher.Session.ID)
@@ -285,7 +350,79 @@ func (pusher *Pusher) bindSession(session *Session) {
 			pusher.UDPServer = nil
 		}
 	})
-	//TODO 发送rtsp组播停止消息
+
+	//组播数据推送
+	server := session.Server
+	if server.enableMulticast {
+		//绑定组播信息
+		multicastInfo := &MulticastCommunicateInfo{
+			SDPRaw:          session.SDPRaw,
+			SourceUrl:       session.URL,
+			Path:            session.Path,
+			SourceSessionId: session.ID,
+		}
+		if session.AControl != "" {
+			session.multicastInfo.AudioRtpMultiAddress, session.multicastInfo.AudioRtpPort = RandomMulticastAddress()
+			session.multicastInfo.CtlAudioRtpMultiAddress, session.multicastInfo.CtlAudioRtpPort = RandomMulticastAddress()
+		}
+		if session.VControl != "" {
+			session.multicastInfo.VideoRtpMultiAddress, session.multicastInfo.VideoRtpPort = RandomMulticastAddress()
+			session.multicastInfo.CtlVideoRtpMultiAddress, session.multicastInfo.CtlVideoRtpPort = RandomMulticastAddress()
+		}
+		session.multicastInfo = multicastInfo
+
+		session.RTPHandles = append(session.RTPHandles, func(pack *RTPPack) {
+			//发送rtp组播包
+			if server.mserver != nil {
+				server.mserver.SendMulticastRtpPack(pack, session.multicastInfo)
+			}
+		}, func(pack *RTPPack) {
+			//发送推流服务通信包
+			multiCommand := &MulticastCommand{
+				Command:   START_MULTICAST,
+				MultiInfo: session.multicastInfo,
+			}
+			send := false
+			if session.multicastBoardTimes == -1 {
+				server.mserver.SendMulticastCommandData(multiCommand)
+				send = true
+			} else if session.multicastBoardTimes < 5 && session.multicastLastBoard.Add(time.Duration(1<<session.multicastBoardTimes)*time.Second).Before(time.Now()) {
+				//前五次发送指数间隔指数递增
+				server.mserver.SendMulticastCommandData(multiCommand)
+				send = true
+			} else if session.multicastLastBoard.Add(time.Duration(20) * time.Second).Before(time.Now()) {
+				//后续每隔20秒发送一次
+				server.mserver.SendMulticastCommandData(multiCommand)
+				send = true
+			}
+			if send {
+				session.multicastBoardTimes++
+				session.multicastLastBoard = time.Now()
+			}
+		})
+
+		session.StopHandles = append(session.StopHandles, func() {
+			go func() {
+				//发送推流服务通信包
+				multiCommand := &MulticastCommand{
+					Command:   STOP_MULTICAST,
+					MultiInfo: session.multicastInfo,
+				}
+				for i := -1; i < 10; i++ {
+					if i > -1 && i < 4 {
+						time.Sleep(time.Duration(1<<i) * time.Second)
+					} else if i >= 4 {
+						time.Sleep(time.Duration(10) * time.Second)
+					}
+					if server.GetPusher(session.Path) != nil {
+						//有新的相同的推流地址，停止发送停止推流命令，并退出
+						break
+					}
+					server.mserver.SendMulticastCommandData(multiCommand)
+				}
+			}()
+		})
+	}
 }
 
 func (pusher *Pusher) RebindSession(session *Session) bool {
@@ -369,6 +506,10 @@ func (pusher *Pusher) Stop() {
 	close(pusher.queue)
 	if pusher.Session != nil {
 		pusher.Session.Stop()
+		return
+	}
+	if pusher.MulticastClient != nil {
+		pusher.MulticastClient.Stop()
 		return
 	}
 	pusher.RTSPClient.Stop()
