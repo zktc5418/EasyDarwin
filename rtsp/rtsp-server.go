@@ -73,11 +73,21 @@ var Instance *Server = func() (server *Server) {
 	if infName != "" {
 		multicastBindInf, _ = net.InterfaceByName(infName)
 	}
-	cmdKeys := utils.Conf().Section("cmd").Keys()
 	var cmds []string
-	for _, key := range cmdKeys {
-		if strings.HasPrefix(key.Name(), "execute_") {
-			cmds = append(cmds, key.Value())
+	environs := os.Environ()
+	envKey := "EASYDARWIN_PUSH_FFMPEG_CMD="
+	for _, environ := range environs {
+		if strings.HasPrefix(environ, envKey) {
+			envVal := environ[len(envKey):]
+			cmds = append(cmds, strings.Split(envVal, ";")...)
+		}
+	}
+	if len(cmds) == 0 {
+		cmdKeys := utils.Conf().Section("cmd").Keys()
+		for _, key := range cmdKeys {
+			if strings.HasPrefix(key.Name(), "execute_") {
+				cmds = append(cmds, key.Value())
+			}
 		}
 	}
 	if len(cmds) > 0 {
