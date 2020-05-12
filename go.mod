@@ -7,7 +7,7 @@ require (
 	github.com/MeloQi/sessions v0.0.0-20191030032128-1c51e5f867b9
 	github.com/ReneKroon/ttlcache v1.6.0
 	github.com/StackExchange/wmi v0.0.0-20190523213315-cbe66965904d // indirect
-	github.com/bruce-qin/EasyGoLib v0.0.0-20200512083046-07c52a0255ab
+	github.com/bruce-qin/EasyGoLib v1.0.0
 	github.com/common-nighthawk/go-figure v0.0.0-20190529165535-67e0ed34491a
 	github.com/eiannone/keyboard v0.0.0-20200508000154-caf4b762e807 // indirect
 	github.com/emirpasic/gods v1.12.0
