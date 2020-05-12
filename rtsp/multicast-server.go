@@ -79,6 +79,7 @@ func InitializeMulticastServer() (mserver *MulticastServer, err error) {
 					logger.Printf("json Unmarshal error:%v", err)
 					continue
 				}
+				logger.Println("收到组播数据：", string(multiInfoBuf))
 				if multiCommand.Command == START_MULTICAST {
 					if pusher := server.GetPusher(multiCommand.MultiInfo.Path); pusher != nil {
 						mserver.pusherCache.Get(multiCommand.MultiInfo.Path)

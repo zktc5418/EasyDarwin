@@ -83,10 +83,26 @@ var Instance *Server = func() (server *Server) {
 				continue out
 			}
 			addrs, _ := ifc.Addrs()
+			var ip net.IP
 			for _, addr := range addrs {
-				if strings.Contains(addr.String(), "::1") || strings.Contains(addr.String(), "127.0.0.1") {
+				if strings.HasPrefix(addr.String(), "::1/") || strings.HasPrefix(addr.String(), "0:0:0:0:0:0:0:1/") || strings.Contains(addr.String(), "127.0.0.1") {
 					continue out
 				}
+				switch v := addr.(type) {
+				case *net.IPAddr:
+					if v.IP.To4() != nil {
+						ip = v.IP
+					}
+				case *net.IPNet:
+					if v.IP.To4() != nil {
+						ip = v.IP
+					}
+				default:
+					continue
+				}
+			}
+			if ip == nil {
+				continue out
 			}
 			multicastBindInf = &ifc
 			break

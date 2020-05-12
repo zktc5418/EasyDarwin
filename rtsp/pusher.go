@@ -494,7 +494,6 @@ func (pusher *Pusher) Start() {
 			if l := len(pusher.gopCache); uint(l) >= MAX_GOP_CACHE_LEN {
 				pusher.gopCache = pusher.gopCache[0:0]
 			}
-			logger.Printf("gopCache len:%d", len(pusher.gopCache))
 			pusher.gopCache = append(pusher.gopCache, pack)
 			//pusher.gopCacheLock.Unlock()
 		}
