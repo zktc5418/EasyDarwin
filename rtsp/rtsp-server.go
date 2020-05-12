@@ -77,9 +77,16 @@ var Instance *Server = func() (server *Server) {
 		}
 	} else {
 		interfaces, _ := net.Interfaces()
+	out:
 		for _, ifc := range interfaces {
 			if ifc.Flags&net.FlagUp|net.FlagMulticast != net.FlagUp|net.FlagMulticast {
-				continue
+				continue out
+			}
+			addrs, _ := ifc.Addrs()
+			for _, addr := range addrs {
+				if strings.Contains(addr.String(), "::1") || strings.Contains(addr.String(), "127.0.0.1") {
+					continue out
+				}
 			}
 			multicastBindInf = &ifc
 			break
@@ -147,6 +154,13 @@ func GetServer() *Server {
 func init() {
 	var err error
 	GetServer().mserver, err = InitializeMulticastServer()
+	if Instance.enableMulticast {
+		if Instance.multicastBindInf != nil {
+			Instance.logger.Println("multicast bind interface:", Instance.multicastBindInf.Name)
+		} else {
+			Instance.logger.Println("multicast bind interface: <nil>")
+		}
+	}
 	if err != nil {
 		Instance.logger.Printf("InitializeMulticastServer error : %v", err)
 	}

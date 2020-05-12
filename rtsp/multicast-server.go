@@ -172,8 +172,8 @@ func (mserver *MulticastServer) SendMulticastRtpPack(pack *RTPPack, multiInfo *M
 }
 
 func openMulticastConnection(udpMultiAddr *net.UDPAddr, inf *net.Interface) (conn *ipv4.PacketConn, err error) {
-	udpConn, err := net.ListenUDP("udp4", udpMultiAddr)
-	//packet, err := net.ListenPacket("udp4", ":0")
+	//udpConn, err := net.ListenMulticastUDP("udp4", GetServer().multicastBindInf, udpMultiAddr)
+	udpConn, err := net.ListenPacket("udp4", udpMultiAddr.String())
 	if err != nil {
 		log.Println(err)
 		return
