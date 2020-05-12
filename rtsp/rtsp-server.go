@@ -71,7 +71,22 @@ var Instance *Server = func() (server *Server) {
 	infName := rtspFile.Key("multicast_svc_bind_inf").MustString("")
 	var multicastBindInf *net.Interface = nil
 	if infName != "" {
-		multicastBindInf, _ = net.InterfaceByName(infName)
+		multicastBindInf, err = net.InterfaceByName(infName)
+		if err != nil {
+			logger.logger.Fatalf("multicast interfaces {%v} not found", err)
+		}
+	} else {
+		interfaces, _ := net.Interfaces()
+		for _, ifc := range interfaces {
+			if ifc.Flags&net.FlagUp|net.FlagMulticast != net.FlagUp|net.FlagMulticast {
+				continue
+			}
+			multicastBindInf = &ifc
+			break
+		}
+		if multicastBindInf == nil {
+			logger.logger.Fatalf("no multicast interfaces found")
+		}
 	}
 	var cmds []string
 	environs := os.Environ()

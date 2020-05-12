@@ -3,6 +3,7 @@ package rtsp
 import (
 	"encoding/json"
 	"fmt"
+	"golang.org/x/net/ipv4"
 	"log"
 	"net"
 	"os"
@@ -16,7 +17,7 @@ type MulticastServer struct {
 
 	cache        *ttlcache.Cache
 	pusherCache  *ttlcache.Cache
-	conn         *net.UDPConn
+	conn         *ipv4.PacketConn
 	multiCmdAddr *net.UDPAddr
 	stopped      bool
 }
@@ -36,7 +37,7 @@ func InitializeMulticastServer() (mserver *MulticastServer, err error) {
 	if err != nil {
 		return
 	}
-	conn, err := net.ListenMulticastUDP("udp", server.multicastBindInf, addr)
+	conn, err := openMulticastConnection(addr, server.multicastBindInf)
 	if err != nil {
 		return
 	}
@@ -55,8 +56,9 @@ func InitializeMulticastServer() (mserver *MulticastServer, err error) {
 		bufUDP := make([]byte, UDP_BUF_SIZE)
 		logger.Printf("multicastServer start listen [%s]", server.multicastAddr)
 		defer logger.Printf("multicastServer stop listen [%s]", server.multicastAddr)
+
 		for !mserver.stopped {
-			if n, _, err := mserver.conn.ReadFromUDP(bufUDP); err == nil {
+			if n, _, _, err := mserver.conn.ReadFrom(bufUDP); err == nil {
 
 				//elapsed := time.Now().Sub(timer)
 				//if elapsed >= 30*time.Second {
@@ -65,6 +67,7 @@ func InitializeMulticastServer() (mserver *MulticastServer, err error) {
 				//}
 				multiInfoBuf := make([]byte, n)
 				copy(multiInfoBuf, bufUDP)
+				mserver.logger.Println("收到组播通信数据：", string(multiInfoBuf), ": 组播地址：", mserver.multiCmdAddr)
 				var multiCommand MulticastCommand
 				err := json.Unmarshal(multiInfoBuf, &multiCommand)
 				if err != nil {
@@ -109,7 +112,8 @@ func (mserver *MulticastServer) SendMulticastCommandData(multiCommand *Multicast
 		mserver.logger.Printf("json serialize error：%v \n", err)
 	}
 	conn := mserver.conn
-	_, err = conn.WriteToUDP(bytes, mserver.multiCmdAddr)
+	mserver.logger.Println("发送组播通信数据：", string(bytes), ": 组播地址：", mserver.multiCmdAddr)
+	_, err = conn.WriteTo(bytes, nil, mserver.multiCmdAddr)
 	if err != nil {
 		mserver.logger.Println("multicast server send MulticastCommand pack error", err)
 	}
@@ -143,8 +147,24 @@ func (mserver *MulticastServer) SendMulticastRtpPack(pack *RTPPack, multiInfo *M
 	} else {
 		udpMultiAddr = udpAddr.(*net.UDPAddr)
 	}
-	_, err := mserver.conn.WriteToUDP(pack.Buffer.Bytes(), udpMultiAddr)
+	_, err := mserver.conn.WriteTo(pack.Buffer.Bytes(), nil, udpMultiAddr)
 	if err != nil {
 		mserver.logger.Print("send rtppack error, address:", udpMultiAddr, err)
 	}
+}
+
+func openMulticastConnection(udpMultiAddr *net.UDPAddr, inf *net.Interface) (conn *ipv4.PacketConn, err error) {
+
+	packet, err := net.ListenPacket("udp4", "0.0.0.0:0")
+	if err != nil {
+		log.Println(err)
+		return
+	}
+	conn = ipv4.NewPacketConn(packet)
+	err = conn.JoinGroup(inf, udpMultiAddr)
+	if err != nil {
+		log.Println(err)
+		return
+	}
+	return
 }
