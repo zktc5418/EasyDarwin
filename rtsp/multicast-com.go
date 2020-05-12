@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/bruce-qin/EasyGoLib/utils"
 	"github.com/emirpasic/gods/sets/hashset"
+	"golang.org/x/net/ipv4"
 	"log"
 	"net"
 	"os"
@@ -78,10 +79,10 @@ type MulticastClient struct {
 	*Server
 	multiInfo *MulticastCommunicateInfo
 
-	AConn        *net.UDPConn
-	AControlConn *net.UDPConn
-	VConn        *net.UDPConn
-	VControlConn *net.UDPConn
+	AConn        *ipv4.PacketConn
+	AControlConn *ipv4.PacketConn
+	VConn        *ipv4.PacketConn
+	VControlConn *ipv4.PacketConn
 
 	StartAt   time.Time
 	Stopped   bool
@@ -124,7 +125,7 @@ func StartMulticastListen(pusher *Pusher, multiInfo *MulticastCommunicateInfo) (
 		multiConn.VControl = sdp.Control
 		multiConn.VCodec = sdp.Codec
 	}
-	var conn *net.UDPConn
+	var conn *ipv4.PacketConn
 	if multiInfo.AudioRtpPort != 0 && multiInfo.AudioRtpMultiAddress != "" {
 		conn, err = multiConn.doMulticastListen(multiInfo.AudioRtpPort, multiInfo.AudioRtpMultiAddress, RTP_TYPE_AUDIO)
 		if err != nil {
@@ -192,14 +193,16 @@ func (multiConn *MulticastClient) Stop() {
 	}
 }
 
-func (multiConn *MulticastClient) doMulticastListen(port uint16, multiAddr string, rType RTPType) (conn *net.UDPConn, err error) {
+func (multiConn *MulticastClient) doMulticastListen(port uint16, multiAddr string, rType RTPType) (conn *ipv4.PacketConn, err error) {
 
 	multiUdpAddr, err := net.ResolveUDPAddr("udp", fmt.Sprint(multiAddr, ":", port))
 	if err != nil {
 		multiConn.logger.Printf("multicast[%s:%d] conn set write buffer error, %v", multiAddr, port, err)
 		return
 	}
-	conn, err = net.ListenMulticastUDP("udp", multiConn.Server.multicastBindInf, multiUdpAddr)
+	conn, err = openMulticastConnection(multiUdpAddr, multiConn.Server.multicastBindInf)
+
+	//conn, err = net.ListenMulticastUDP("udp", multiConn.Server.multicastBindInf, multiUdpAddr)
 	if err != nil {
 		multiConn.logger.Printf("multicast[%s:%d] conn set write buffer error, %v", multiAddr, port, err)
 		return
@@ -214,7 +217,7 @@ func (multiConn *MulticastClient) doMulticastListen(port uint16, multiAddr strin
 		AddExistMulticastAddress(multiAddr, port)
 		timer := time.Unix(0, 0)
 		for !multiConn.Stopped {
-			if n, _, err := conn.ReadFromUDP(bufUDP); err == nil {
+			if n, _, _, err := conn.ReadFrom(bufUDP); err == nil {
 				elapsed := time.Now().Sub(timer)
 				if elapsed >= 30*time.Second {
 					logger.Printf("Package recv from multicast[%s:%d]::%d\n", multiAddr, port, n)

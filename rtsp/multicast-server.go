@@ -15,7 +15,7 @@ import (
 type MulticastServer struct {
 	*SessionLogger
 
-	cache        *ttlcache.Cache
+	connCache    *ttlcache.Cache
 	pusherCache  *ttlcache.Cache
 	conn         *ipv4.PacketConn
 	multiCmdAddr *net.UDPAddr
@@ -43,12 +43,18 @@ func InitializeMulticastServer() (mserver *MulticastServer, err error) {
 	}
 	mserver.multiCmdAddr = addr
 	mserver.conn = conn
-	mserver.cache = ttlcache.NewCache()
+	mserver.connCache = ttlcache.NewCache()
 	mserver.pusherCache = ttlcache.NewCache()
 	mserver.pusherCache.SetExpirationCallback(func(path string, pusher interface{}) {
 		storedPusher := server.GetPusher(path)
 		if storedPusher != nil {
 			storedPusher.Stop()
+		}
+	})
+	mserver.connCache.SetExpirationCallback(func(key string, udpConn interface{}) {
+		if conn := udpConn.(*net.UDPConn); conn != nil {
+			err := conn.Close()
+			mserver.logger.Println("Close UDP Connection error", err)
 		}
 	})
 	go func() {
@@ -67,7 +73,6 @@ func InitializeMulticastServer() (mserver *MulticastServer, err error) {
 				//}
 				multiInfoBuf := make([]byte, n)
 				copy(multiInfoBuf, bufUDP)
-				mserver.logger.Println("收到组播通信数据：", string(multiInfoBuf), ": 组播地址：", mserver.multiCmdAddr)
 				var multiCommand MulticastCommand
 				err := json.Unmarshal(multiInfoBuf, &multiCommand)
 				if err != nil {
@@ -111,12 +116,33 @@ func (mserver *MulticastServer) SendMulticastCommandData(multiCommand *Multicast
 	if err != nil {
 		mserver.logger.Printf("json serialize error：%v \n", err)
 	}
-	conn := mserver.conn
-	mserver.logger.Println("发送组播通信数据：", string(bytes), ": 组播地址：", mserver.multiCmdAddr)
-	_, err = conn.WriteTo(bytes, nil, mserver.multiCmdAddr)
+
+	conn, err := mserver.getMulticastConnectionFromCache(GetServer().multicastAddr)
+	if err != nil {
+		mserver.logger.Println("send multicast data error :", err)
+		return
+	}
+	_, err = conn.Write(bytes)
 	if err != nil {
 		mserver.logger.Println("multicast server send MulticastCommand pack error", err)
 	}
+}
+
+func (mserver *MulticastServer) getMulticastConnectionFromCache(multicastAddress string) (udpConn *net.UDPConn, err error) {
+	udpConnCache, success := mserver.connCache.Get(multicastAddress)
+	if !success {
+		var udpAddr *net.UDPAddr
+		udpAddr, err = net.ResolveUDPAddr("udp", multicastAddress)
+		if err != nil {
+			mserver.logger.Print("get multicast address error", err)
+			return
+		}
+		udpConn, err = net.DialUDP("udp", nil, udpAddr)
+		mserver.connCache.SetWithTTL(multicastAddress, udpConn, time.Duration(30)*time.Second)
+	} else {
+		udpConn = udpConnCache.(*net.UDPConn)
+	}
+	return
 }
 
 func (mserver *MulticastServer) SendMulticastRtpPack(pack *RTPPack, multiInfo *MulticastCommunicateInfo) {
@@ -134,34 +160,26 @@ func (mserver *MulticastServer) SendMulticastRtpPack(pack *RTPPack, multiInfo *M
 	case RTP_TYPE_VIDEOCONTROL:
 		multicastAddress = fmt.Sprint(multiInfo.CtlVideoRtpMultiAddress, ":", multiInfo.CtlVideoRtpPort)
 	}
-	var udpMultiAddr *net.UDPAddr
-	udpAddr, success := mserver.cache.Get(multicastAddress)
-	if !success {
-		udpAddr, err := net.ResolveUDPAddr("udp", multicastAddress)
-		if err != nil {
-			mserver.logger.Print("send rtppack error, multicast address error", err)
-			return
-		}
-		mserver.cache.SetWithTTL(multicastAddress, udpAddr, time.Duration(30)*time.Second)
-		udpMultiAddr = udpAddr
-	} else {
-		udpMultiAddr = udpAddr.(*net.UDPAddr)
-	}
-	_, err := mserver.conn.WriteTo(pack.Buffer.Bytes(), nil, udpMultiAddr)
+	udpConn, err := mserver.getMulticastConnectionFromCache(multicastAddress)
 	if err != nil {
-		mserver.logger.Print("send rtppack error, address:", udpMultiAddr, err)
+		mserver.logger.Print("send rtppack error, address:", multicastAddress, err)
+		return
+	}
+	_, err = udpConn.Write(pack.Buffer.Bytes())
+	if err != nil {
+		mserver.logger.Print("send rtppack error, address:", multicastAddress, err)
 	}
 }
 
 func openMulticastConnection(udpMultiAddr *net.UDPAddr, inf *net.Interface) (conn *ipv4.PacketConn, err error) {
-
-	packet, err := net.ListenPacket("udp4", "0.0.0.0:0")
+	udpConn, err := net.ListenUDP("udp4", udpMultiAddr)
+	//packet, err := net.ListenPacket("udp4", ":0")
 	if err != nil {
 		log.Println(err)
 		return
 	}
-	conn = ipv4.NewPacketConn(packet)
-	err = conn.JoinGroup(inf, udpMultiAddr)
+	conn = ipv4.NewPacketConn(udpConn)
+	err = conn.JoinGroup(inf, &net.UDPAddr{IP: udpMultiAddr.IP})
 	if err != nil {
 		log.Println(err)
 		return

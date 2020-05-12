@@ -7,7 +7,7 @@ require (
 	github.com/MeloQi/sessions v0.0.0-20191030032128-1c51e5f867b9
 	github.com/ReneKroon/ttlcache v1.6.0
 	github.com/StackExchange/wmi v0.0.0-20190523213315-cbe66965904d // indirect
-	github.com/bruce-qin/EasyGoLib v0.0.0-20200509162320-0e47b9d4cc26
+	github.com/bruce-qin/EasyGoLib v0.0.0-20200512083046-07c52a0255ab
 	github.com/common-nighthawk/go-figure v0.0.0-20190529165535-67e0ed34491a
 	github.com/eiannone/keyboard v0.0.0-20200508000154-caf4b762e807 // indirect
 	github.com/emirpasic/gods v1.12.0
@@ -42,6 +42,6 @@ require (
 	github.com/tebeka/strftime v0.1.4 // indirect
 	github.com/teris-io/shortid v0.0.0-20171029131806-771a37caa5cf
 	golang.org/x/net v0.0.0-20200506145744-7e3656a0809f
-	golang.org/x/sys v0.0.0-20200509044756-6aff5f38e54f // indirect
+	golang.org/x/sys v0.0.0-20200511232937-7e40ca221e25 // indirect
 	gopkg.in/ini.v1 v1.56.0 // indirect
 )
