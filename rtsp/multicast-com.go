@@ -200,7 +200,7 @@ func (multiConn *MulticastClient) doMulticastListen(port uint16, multiAddr strin
 		multiConn.logger.Printf("multicast[%s:%d] conn set write buffer error, %v", multiAddr, port, err)
 		return
 	}
-	conn, err = openMulticastConnection(multiUdpAddr, multiConn.Server.multicastBindInf)
+	conn, err = utils.ListenMulticastAddress(multiUdpAddr, multiConn.Server.multicastBindInf)
 
 	//conn, err = net.ListenMulticastUDP("udp", multiConn.Server.multicastBindInf, multiUdpAddr)
 	if err != nil {

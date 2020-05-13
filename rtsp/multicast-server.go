@@ -3,6 +3,7 @@ package rtsp
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/bruce-qin/EasyGoLib/utils"
 	"golang.org/x/net/ipv4"
 	"log"
 	"net"
@@ -37,7 +38,7 @@ func InitializeMulticastServer() (mserver *MulticastServer, err error) {
 	if err != nil {
 		return
 	}
-	conn, err := openMulticastConnection(addr, server.multicastBindInf)
+	conn, err := utils.ListenMulticastAddress(addr, server.multicastBindInf)
 	if err != nil {
 		return
 	}
@@ -170,20 +171,4 @@ func (mserver *MulticastServer) SendMulticastRtpPack(pack *RTPPack, multiInfo *M
 	if err != nil {
 		mserver.logger.Print("send rtppack error, address:", multicastAddress, err)
 	}
-}
-
-func openMulticastConnection(udpMultiAddr *net.UDPAddr, inf *net.Interface) (conn *ipv4.PacketConn, err error) {
-	//udpConn, err := net.ListenMulticastUDP("udp4", GetServer().multicastBindInf, udpMultiAddr)
-	udpConn, err := net.ListenPacket("udp4", udpMultiAddr.String())
-	if err != nil {
-		log.Println(err)
-		return
-	}
-	conn = ipv4.NewPacketConn(udpConn)
-	err = conn.JoinGroup(inf, &net.UDPAddr{IP: udpMultiAddr.IP})
-	if err != nil {
-		log.Println(err)
-		return
-	}
-	return
 }

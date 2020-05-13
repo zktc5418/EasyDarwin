@@ -76,37 +76,7 @@ var Instance *Server = func() (server *Server) {
 			logger.logger.Fatalf("multicast interfaces {%v} not found", err)
 		}
 	} else {
-		interfaces, _ := net.Interfaces()
-	out:
-		for _, ifc := range interfaces {
-			if ifc.Flags&net.FlagUp|net.FlagMulticast != net.FlagUp|net.FlagMulticast {
-				continue out
-			}
-			addrs, _ := ifc.Addrs()
-			var ip net.IP
-			for _, addr := range addrs {
-				if strings.HasPrefix(addr.String(), "::1/") || strings.HasPrefix(addr.String(), "0:0:0:0:0:0:0:1/") || strings.Contains(addr.String(), "127.0.0.1") {
-					continue out
-				}
-				switch v := addr.(type) {
-				case *net.IPAddr:
-					if v.IP.To4() != nil {
-						ip = v.IP
-					}
-				case *net.IPNet:
-					if v.IP.To4() != nil {
-						ip = v.IP
-					}
-				default:
-					continue
-				}
-			}
-			if ip == nil {
-				continue out
-			}
-			multicastBindInf = &ifc
-			break
-		}
+		multicastBindInf = utils.FindSupportMulticastInterface()
 		if multicastBindInf == nil {
 			logger.logger.Fatalf("no multicast interfaces found")
 		}
