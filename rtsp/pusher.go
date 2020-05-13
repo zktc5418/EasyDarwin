@@ -69,11 +69,11 @@ func (pusher *Pusher) Path() string {
 	if pusher.Session != nil {
 		return pusher.Session.Path
 	}
-	if pusher.RTSPClient.CustomPath != "" {
-		return pusher.RTSPClient.CustomPath
-	}
 	if pusher.MulticastClient != nil {
 		return pusher.MulticastClient.multiInfo.Path
+	}
+	if pusher.RTSPClient.CustomPath != "" {
+		return pusher.RTSPClient.CustomPath
 	}
 	return pusher.RTSPClient.Path
 }
