@@ -18,9 +18,9 @@ require (
 	github.com/gin-gonic/gin v1.6.3
 	github.com/go-ini/ini v1.56.0 // indirect
 	github.com/go-ole/go-ole v1.2.4 // indirect
-	github.com/go-playground/validator/v10 v10.2.0
-	github.com/go-redis/redis v6.15.7+incompatible // indirect
-	github.com/golang/protobuf v1.4.1 // indirect
+	github.com/go-playground/validator/v10 v10.3.0
+	github.com/go-redis/redis v6.15.8+incompatible // indirect
+	github.com/golang/protobuf v1.4.2 // indirect
 	github.com/gorilla/context v1.1.1 // indirect
 	//	github.com/gorilla/context v1.1.1
 	github.com/gorilla/sessions v1.2.0 // indirect
@@ -41,7 +41,8 @@ require (
 	github.com/smartystreets/goconvey v1.6.4 // indirect
 	github.com/tebeka/strftime v0.1.4 // indirect
 	github.com/teris-io/shortid v0.0.0-20171029131806-771a37caa5cf
-	golang.org/x/net v0.0.0-20200506145744-7e3656a0809f
-	golang.org/x/sys v0.0.0-20200511232937-7e40ca221e25 // indirect
+	golang.org/x/net v0.0.0-20200520182314-0ba52f642ac2
+	golang.org/x/sys v0.0.0-20200523222454-059865788121 // indirect
 	gopkg.in/ini.v1 v1.56.0 // indirect
+	gopkg.in/yaml.v2 v2.3.0 // indirect
 )

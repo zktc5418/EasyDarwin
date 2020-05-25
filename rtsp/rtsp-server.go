@@ -264,6 +264,7 @@ func (server *Server) Start() (err error) {
 						if proc != nil {
 							logger.Printf("prepare to SIGTERM to process:%v", proc)
 							proc.Signal(syscall.SIGTERM)
+							proc.Release()
 							proc.Wait()
 							// proc.Kill()
 							// no need to close attached log file.
@@ -285,7 +286,7 @@ func (server *Server) Start() (err error) {
 							proc := cmd.Process
 							if proc != nil {
 								logger.Printf("prepare to SIGTERM to process:%v", proc)
-								proc.Signal(syscall.SIGINT)
+								proc.Signal(syscall.SIGTERM)
 								proc.Release()
 							}
 						}
@@ -301,7 +302,7 @@ func (server *Server) Start() (err error) {
 						proc := cmd.Process
 						if proc != nil {
 							logger.Printf("prepare to SIGTERM to process:%v", proc)
-							err = proc.Signal(syscall.SIGINT)
+							err = proc.Signal(syscall.SIGTERM)
 							if err != nil {
 								logger.Printf("kill ffmpeg process: %v error :%v", proc, err)
 							}
