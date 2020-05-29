@@ -198,23 +198,23 @@ func (session *Session) Start() {
 	timer := time.Unix(0, 0)
 	for !session.Stoped {
 		if _, err := io.ReadFull(session.connRW, buf1); err != nil {
-			logger.Println(session, err)
+			logger.Println("stop ", session.Type, ":", session, "error info:", err)
 			return
 		}
 		if buf1[0] == 0x24 { //rtp data
 			if _, err := io.ReadFull(session.connRW, buf1); err != nil {
-				logger.Println(err)
+				logger.Println("stop ", session.Type, ":", session, "error info:", err)
 				return
 			}
 			if _, err := io.ReadFull(session.connRW, buf2); err != nil {
-				logger.Println(err)
+				logger.Println("stop ", session.Type, ":", session, "error info:", err)
 				return
 			}
 			channel := int(buf1[0])
 			rtpLen := int(binary.BigEndian.Uint16(buf2))
 			rtpBytes := make([]byte, rtpLen)
 			if _, err := io.ReadFull(session.connRW, rtpBytes); err != nil {
-				logger.Println(err)
+				logger.Println("stop ", session.Type, ":", session, "error info:", err)
 				return
 			}
 			rtpBuf := bytes.NewBuffer(rtpBytes)
@@ -267,7 +267,7 @@ func (session *Session) Start() {
 			reqBuf.Write(buf1)
 			for !session.Stoped {
 				if line, isPrefix, err := session.connRW.ReadLine(); err != nil {
-					logger.Println(err)
+					logger.Println("stop ", session.Type, ":", session, "error info:", err)
 					return
 				} else {
 					reqBuf.Write(line)
