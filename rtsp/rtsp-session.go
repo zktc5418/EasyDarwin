@@ -267,7 +267,9 @@ func (session *Session) Start() {
 			reqBuf.Write(buf1)
 			for !session.Stoped {
 				if line, isPrefix, err := session.connRW.ReadLine(); err != nil {
-					logger.Println("stop ", session.Type, ":", session, "; path: ", session.Path, "; error info:", err)
+					if session.Path != "" {
+						logger.Println("stop ", session.Type, ":", session, "; path: ", session.Path, "; error info:", err)
+					}
 					return
 				} else {
 					reqBuf.Write(line)
