@@ -198,7 +198,9 @@ func (session *Session) Start() {
 	timer := time.Unix(0, 0)
 	for !session.Stoped {
 		if _, err := io.ReadFull(session.connRW, buf1); err != nil {
-			logger.Println("stop ", session.Type, ":", session, "; path: ", session.Path, "; error info:", err)
+			if session.Path != "" {
+				logger.Println("stop ", session.Type, ":", session, "; path: ", session.Path, "; error info:", err)
+			}
 			return
 		}
 		if buf1[0] == 0x24 { //rtp data
