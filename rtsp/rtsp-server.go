@@ -343,7 +343,6 @@ func (server *Server) Start() (err error) {
 				logger.Printf("rtsp server conn set write buffer error, %v", err)
 			}
 		}
-
 		session := NewSession(server, conn)
 		go session.Start()
 	}

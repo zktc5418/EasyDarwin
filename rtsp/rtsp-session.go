@@ -523,6 +523,7 @@ func (session *Session) handleRequest(req *Request) {
 		session.ACodec = pusher.ACodec()
 		session.VCodec = pusher.VCodec()
 		session.Conn.timeout = 0
+		session.logger = log.New(os.Stdout, fmt.Sprintf("[player:%s, pusher:%s, path: %s]", session.ID, pusher.ID(), session.Path), log.LstdFlags|log.Lshortfile)
 		res.SetBody(session.Pusher.SDPRaw())
 	case "SETUP":
 		ts := req.Header["Transport"]
