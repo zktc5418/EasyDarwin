@@ -135,6 +135,9 @@ type Session struct {
 	UDPClient   *UDPClient
 	RTPHandles  []func(*RTPPack)
 	StopHandles []func()
+
+	rtpPackHandelChan chan *RTPPack
+	requestHandelChan chan *Request
 }
 
 func (session *Session) String() string {
@@ -161,6 +164,8 @@ func NewSession(server *Server, conn net.Conn) *Session {
 		aRTPChannel:         -1,
 		aRTPControlChannel:  -1,
 		closeOld:            server.closeOld,
+		rtpPackHandelChan:   make(chan *RTPPack, 10),
+		requestHandelChan:   make(chan *Request, 1),
 	}
 
 	session.logger = log.New(os.Stdout, fmt.Sprintf("[%s]", session.ID), log.LstdFlags|log.Lshortfile)
@@ -190,12 +195,32 @@ func (session *Session) Stop() {
 	}
 }
 
+func (session *Session) startRtpHandler() {
+	for !session.Stoped {
+		if pack, ok := <-session.rtpPackHandelChan; ok {
+			for _, h := range session.RTPHandles {
+				h(pack)
+			}
+		}
+	}
+}
+
+func (session *Session) startRequestHandler() {
+	for !session.Stoped {
+		if req, ok := <-session.requestHandelChan; ok {
+			session.handleRequest(req)
+		}
+	}
+}
+
 func (session *Session) Start() {
 	defer session.Stop()
 	buf1 := make([]byte, 1)
 	buf2 := make([]byte, 2)
 	logger := session.logger
 	timer := time.Unix(0, 0)
+	go session.startRtpHandler()
+	go session.startRequestHandler()
 	for !session.Stoped {
 		if _, err := io.ReadFull(session.connRW, buf1); err != nil {
 			if session.Path != "" {
@@ -261,16 +286,17 @@ func (session *Session) Start() {
 				continue
 			}
 			session.InBytes += rtpLen + 4
-			for _, h := range session.RTPHandles {
-				h(pack)
-			}
+			session.rtpPackHandelChan <- pack
+			//for _, h := range session.RTPHandles {
+			//	h(pack)
+			//}
 		} else { // rtsp cmd
 			reqBuf := bytes.NewBuffer(nil)
 			reqBuf.Write(buf1)
 			for !session.Stoped {
 				if line, isPrefix, err := session.connRW.ReadLine(); err != nil {
 					if session.Path != "" {
-						logger.Println("stop ", session.Type, ":", session, "; path: ", session.Path, "; error info:", err)
+						logger.Println("rtsp protocol transform error, stop ", session.Type, ":", session, "; path: ", session.Path, "; error info:", err)
 					}
 					return
 				} else {
@@ -289,15 +315,16 @@ func (session *Session) Start() {
 						if contentLen > 0 {
 							bodyBuf := make([]byte, contentLen)
 							if n, err := io.ReadFull(session.connRW, bodyBuf); err != nil {
-								logger.Println(err)
+								logger.Println("rtsp protocol transform error:", err)
 								return
 							} else if n != contentLen {
-								logger.Printf("read rtsp request body failed, expect size[%d], got size[%d]", contentLen, n)
+								logger.Printf("rtsp protocol transform error, read rtsp request body failed, expect size[%d], got size[%d]", contentLen, n)
 								return
 							}
 							req.Body = string(bodyBuf)
 						}
-						session.handleRequest(req)
+						session.requestHandelChan <- req
+						//session.handleRequest(req)
 						break
 					}
 				}
