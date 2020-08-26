@@ -264,8 +264,12 @@ func (server *Server) Start() (err error) {
 						if proc != nil {
 							logger.Printf("prepare to SIGTERM to process:%v", proc)
 							proc.Signal(syscall.SIGTERM)
-							proc.Release()
-							proc.Wait()
+							go func() {
+								proc.Release()
+								if err2 := cmd.Wait(); err2 != nil {
+									logger.Printf("exit  process error:%v", err2)
+								}
+							}()
 							// proc.Kill()
 							// no need to close attached log file.
 							// see "Wait releases any resources associated with the Cmd."
@@ -287,7 +291,12 @@ func (server *Server) Start() (err error) {
 							if proc != nil {
 								logger.Printf("prepare to SIGTERM to process:%v", proc)
 								proc.Signal(syscall.SIGTERM)
-								proc.Release()
+								go func() {
+									proc.Release()
+									if err2 := cmd.Wait(); err2 != nil {
+										logger.Printf("exit  process error:%v", err2)
+									}
+								}()
 							}
 						}
 						for _, f := range pusher2ffmpegFileMap {
@@ -306,10 +315,12 @@ func (server *Server) Start() (err error) {
 							if err != nil {
 								logger.Printf("kill ffmpeg process: %v error :%v", proc, err)
 							}
-							err = proc.Release()
-							if err != nil {
-								logger.Printf("release ffmpeg process: %v error :%v", proc, err)
-							}
+							go func() {
+								proc.Release()
+								if err2 := cmd.Wait(); err2 != nil {
+									logger.Printf("exit  process error:%v", err2)
+								}
+							}()
 						}
 					}
 					delete(pusher2CmdMap, pusher)
