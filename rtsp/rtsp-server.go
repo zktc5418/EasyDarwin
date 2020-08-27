@@ -11,7 +11,6 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"syscall"
 	"time"
 
 	"github.com/bruce-qin/EasyGoLib/utils"
@@ -260,25 +259,14 @@ func (server *Server) Start() (err error) {
 				if SaveStreamToLocal {
 					if removeChnOk {
 						cmd := pusher2ffmpegMap[pusher]
-						proc := cmd.Process
-						if proc != nil {
-							logger.Printf("prepare to SIGTERM to process:%v", proc)
-							proc.Signal(syscall.SIGTERM)
-							go func() {
-								proc.Release()
-								if err2 := cmd.Wait(); err2 != nil {
-									logger.Printf("exit  process error:%v", err2)
-								}
-							}()
-							// proc.Kill()
-							// no need to close attached log file.
-							// see "Wait releases any resources associated with the Cmd."
-							// if closer, ok := cmd.Stdout.(io.Closer); ok {
-							// 	closer.Close()
-							// 	logger.Printf("process:%v Stdout closed.", proc)
-							// }
-							logger.Printf("process:%v terminate.", proc)
-						}
+						go func() {
+							if err2 := cmd.Process.Kill(); err2 != nil {
+								logger.Printf("kill  process error:%v", err2)
+							}
+							if err2 := cmd.Wait(); err2 != nil {
+								logger.Printf("exit  process error:%v", err2)
+							}
+						}()
 						if pusher2ffmpegFileMap[pusher] != nil {
 							pusher2ffmpegFileMap[pusher].Close()
 							delete(pusher2ffmpegFileMap, pusher)
@@ -287,17 +275,15 @@ func (server *Server) Start() (err error) {
 						logger.Printf("delete ffmpeg from pull stream from pusher[%v]", pusher)
 					} else {
 						for _, cmd := range pusher2ffmpegMap {
-							proc := cmd.Process
-							if proc != nil {
-								logger.Printf("prepare to SIGTERM to process:%v", proc)
-								proc.Signal(syscall.SIGTERM)
-								go func() {
-									proc.Release()
-									if err2 := cmd.Wait(); err2 != nil {
-										logger.Printf("exit  process error:%v", err2)
-									}
-								}()
-							}
+							cmd2 := cmd
+							go func() {
+								if err2 := cmd2.Process.Kill(); err2 != nil {
+									logger.Printf("kill  process error:%v", err2)
+								}
+								if err2 := cmd2.Wait(); err2 != nil {
+									logger.Printf("exit  process error:%v", err2)
+								}
+							}()
 						}
 						for _, f := range pusher2ffmpegFileMap {
 							f.Close()
@@ -308,20 +294,15 @@ func (server *Server) Start() (err error) {
 				}
 				if len(server.pushCmd) > 0 && pusher.MulticastClient == nil {
 					for _, cmd := range pusher2CmdMap[pusher] {
-						proc := cmd.Process
-						if proc != nil {
-							logger.Printf("prepare to SIGTERM to process:%v", proc)
-							err = proc.Signal(syscall.SIGTERM)
-							if err != nil {
-								logger.Printf("kill ffmpeg process: %v error :%v", proc, err)
+						cmd2 := cmd
+						go func() {
+							if err2 := cmd2.Process.Kill(); err2 != nil {
+								logger.Printf("kill  process error:%v", err2)
 							}
-							go func() {
-								proc.Release()
-								if err2 := cmd.Wait(); err2 != nil {
-									logger.Printf("exit  process error:%v", err2)
-								}
-							}()
-						}
+							if err2 := cmd2.Wait(); err2 != nil {
+								logger.Printf("exit  process error:%v", err2)
+							}
+						}()
 					}
 					delete(pusher2CmdMap, pusher)
 					for _, f := range pusher2CmdWriterMap[pusher] {
