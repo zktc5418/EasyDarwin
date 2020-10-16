@@ -237,8 +237,8 @@ func (server *Server) Start() (err error) {
 					}
 				}
 				if len(server.pushCmd) > 0 && pusher.MulticastClient == nil {
-					cmdSet := &hashset.Set{}
-					openFileSet := &hashset.Set{}
+					cmdSet := hashset.New()
+					openFileSet := hashset.New()
 					//var cmds []*exec.Cmd
 					//var openFiles []*os.File
 					for _, cmdRaw := range server.pushCmd {
