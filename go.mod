@@ -14,13 +14,13 @@ require (
 	github.com/fastly/go-utils v0.0.0-20180712184237-d95a45783239 // indirect
 	github.com/gin-contrib/cors v1.3.1
 	github.com/gin-contrib/pprof v1.3.0
-	github.com/gin-contrib/static v0.0.0-20200815103939-31fb0c56a3d1
+	github.com/gin-contrib/static v0.0.0-20200916080430-d45d9a37d28e
 	github.com/gin-gonic/gin v1.6.3
-	github.com/go-ini/ini v1.60.1 // indirect
+	github.com/go-ini/ini v1.62.0 // indirect
 	github.com/go-ole/go-ole v1.2.4 // indirect
-	github.com/go-playground/validator/v10 v10.3.0
+	github.com/go-playground/validator/v10 v10.4.0
 	github.com/go-redis/redis v6.15.9+incompatible // indirect
-	github.com/golang/protobuf v1.4.2 // indirect
+	github.com/golang/protobuf v1.4.3 // indirect
 	github.com/gorilla/context v1.1.1 // indirect
 	//	github.com/gorilla/context v1.1.1
 	github.com/gorilla/sessions v1.2.1 // indirect
@@ -28,7 +28,7 @@ require (
 	github.com/jinzhu/gorm v1.9.16
 	github.com/jonboulle/clockwork v0.1.0 // indirect
 	github.com/json-iterator/go v1.1.10 // indirect
-	github.com/lestrrat-go/file-rotatelogs v2.3.0+incompatible // indirect
+	github.com/lestrrat-go/file-rotatelogs v2.4.0+incompatible // indirect
 	github.com/lestrrat-go/strftime v1.0.3 // indirect
 	github.com/mattn/go-sqlite3 v2.0.3+incompatible // indirect
 	//	github.com/mattn/go-sqlite3 v2.0.3+incompatible
@@ -38,12 +38,14 @@ require (
 	github.com/onsi/gomega v1.10.0 // indirect
 	github.com/pixelbender/go-sdp v1.0.0
 	github.com/pkg/errors v0.9.1 // indirect
-	github.com/shirou/gopsutil v2.20.7+incompatible
+	github.com/shirou/gopsutil v2.20.9+incompatible
 	github.com/smartystreets/goconvey v1.6.4 // indirect
 	github.com/tebeka/strftime v0.1.4 // indirect
 	github.com/teris-io/shortid v0.0.0-20171029131806-771a37caa5cf
-	golang.org/x/net v0.0.0-20200822124328-c89045814202
-	golang.org/x/sys v0.0.0-20200824131525-c12d262b63d8 // indirect
+	github.com/ugorji/go v1.1.12 // indirect
+	golang.org/x/crypto v0.0.0-20201012173705-84dcc777aaee // indirect
+	golang.org/x/net v0.0.0-20201010224723-4f7140c49acb
+	golang.org/x/sys v0.0.0-20201015000850-e3ed0017c211 // indirect
 	google.golang.org/protobuf v1.25.0 // indirect
 	gopkg.in/ini.v1 v1.56.0 // indirect
 	gopkg.in/yaml.v2 v2.3.0 // indirect
