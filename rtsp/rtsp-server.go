@@ -2,6 +2,7 @@ package rtsp
 
 import (
 	"fmt"
+	"github.com/emirpasic/gods/sets/hashset"
 	"log"
 	"net"
 	"os"
@@ -178,8 +179,8 @@ func (server *Server) Start() (err error) {
 	go func() { // save to local.
 		pusher2ffmpegMap := make(map[*Pusher]*exec.Cmd)
 		pusher2ffmpegFileMap := make(map[*Pusher]*os.File)
-		pusher2CmdMap := make(map[*Pusher][]*exec.Cmd)
-		pusher2CmdWriterMap := make(map[*Pusher][]*os.File)
+		pusher2CmdMap := make(map[*Pusher]*hashset.Set)
+		pusher2CmdWriterMap := make(map[*Pusher]*hashset.Set)
 		regx, _ := regexp.Compile("[ ]+")
 		if SaveStreamToLocal {
 			logger.Printf("Prepare to save stream to local....")
@@ -219,6 +220,15 @@ func (server *Server) Start() (err error) {
 						if err != nil {
 							logger.Printf("Start ffmpeg err:%v", err)
 						}
+						go func() {
+							//防止转码进程自己因为错误停止，出现僵尸进程
+							if err2 := cmd.Wait(); err2 != nil {
+								logger.Printf("exit  process error:%v", err2)
+							}
+							time.Sleep(time.Duration(2) * time.Second)
+							delete(pusher2ffmpegFileMap, pusher)
+							delete(pusher2ffmpegMap, pusher)
+						}()
 						pusher2ffmpegFileMap[pusher] = f
 						pusher2ffmpegMap[pusher] = cmd
 						logger.Printf("add ffmpeg [%v] to pull stream from pusher[%v]", cmd, pusher)
@@ -227,8 +237,10 @@ func (server *Server) Start() (err error) {
 					}
 				}
 				if len(server.pushCmd) > 0 && pusher.MulticastClient == nil {
-					var cmds []*exec.Cmd
-					var openFiles []*os.File
+					cmdSet := &hashset.Set{}
+					openFileSet := &hashset.Set{}
+					//var cmds []*exec.Cmd
+					//var openFiles []*os.File
 					for _, cmdRaw := range server.pushCmd {
 						cmd := strings.ReplaceAll(cmdRaw, "{path}", strings.TrimLeft(pusher.Path(), "/"))
 						cmd = strings.TrimLeft(strings.TrimSpace(cmd), "ffmpeg")
@@ -249,30 +261,42 @@ func (server *Server) Start() (err error) {
 						if err != nil {
 							logger.Printf("Start exec err:%v", err)
 						}
-						cmds = append(cmds, execCmd)
-						openFiles = append(openFiles, f)
+						cmdSet.Add(execCmd)
+						openFileSet.Add(f)
+						//cmds = append(cmds, execCmd)
+						//openFiles = append(openFiles, f)
+						go func() {
+							//防止转码进程自己因为错误停止，出现僵尸进程
+							if err2 := execCmd.Wait(); err2 != nil {
+								logger.Printf("exit  process error:%v", err2)
+							}
+							time.Sleep(time.Duration(2) * time.Second)
+							cmdSet.Remove(execCmd)
+							openFileSet.Remove(f)
+						}()
 					}
-					pusher2CmdMap[pusher] = cmds
-					pusher2CmdWriterMap[pusher] = openFiles
+					pusher2CmdMap[pusher] = cmdSet
+					pusher2CmdWriterMap[pusher] = openFileSet
 				}
 			case pusher, removeChnOk = <-server.removePusherCh:
 				if SaveStreamToLocal {
 					if removeChnOk {
-						cmd := pusher2ffmpegMap[pusher]
-						go func() {
-							if err2 := cmd.Process.Kill(); err2 != nil {
-								logger.Printf("kill  process error:%v", err2)
+						if cmd := pusher2ffmpegMap[pusher]; cmd != nil {
+							go func() {
+								if err2 := cmd.Process.Kill(); err2 != nil {
+									logger.Printf("kill  process error:%v", err2)
+								}
+								if err2 := cmd.Wait(); err2 != nil {
+									logger.Printf("exit  process error:%v", err2)
+								}
+							}()
+							if f := pusher2ffmpegFileMap[pusher]; f != nil {
+								f.Close()
+								delete(pusher2ffmpegFileMap, pusher)
 							}
-							if err2 := cmd.Wait(); err2 != nil {
-								logger.Printf("exit  process error:%v", err2)
-							}
-						}()
-						if pusher2ffmpegFileMap[pusher] != nil {
-							pusher2ffmpegFileMap[pusher].Close()
-							delete(pusher2ffmpegFileMap, pusher)
+							delete(pusher2ffmpegMap, pusher)
+							logger.Printf("delete ffmpeg from pull stream from pusher[%v]", pusher)
 						}
-						delete(pusher2ffmpegMap, pusher)
-						logger.Printf("delete ffmpeg from pull stream from pusher[%v]", pusher)
 					} else {
 						for _, cmd := range pusher2ffmpegMap {
 							cmd2 := cmd
@@ -289,12 +313,13 @@ func (server *Server) Start() (err error) {
 							f.Close()
 						}
 						pusher2ffmpegMap = make(map[*Pusher]*exec.Cmd)
+						pusher2ffmpegFileMap = make(map[*Pusher]*os.File)
 						logger.Printf("removePusherChan closed")
 					}
 				}
 				if len(server.pushCmd) > 0 && pusher.MulticastClient == nil {
-					for _, cmd := range pusher2CmdMap[pusher] {
-						cmd2 := cmd
+					for _, cmd := range pusher2CmdMap[pusher].Values() {
+						cmd2 := cmd.(*exec.Cmd)
 						go func() {
 							if err2 := cmd2.Process.Kill(); err2 != nil {
 								logger.Printf("kill  process error:%v", err2)
@@ -305,8 +330,8 @@ func (server *Server) Start() (err error) {
 						}()
 					}
 					delete(pusher2CmdMap, pusher)
-					for _, f := range pusher2CmdWriterMap[pusher] {
-						err := f.Close()
+					for _, f := range pusher2CmdWriterMap[pusher].Values() {
+						err := f.(*os.File).Close()
 						if err != nil {
 							logger.Print("close log file stream error:", err)
 						}
