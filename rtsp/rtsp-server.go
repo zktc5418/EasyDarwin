@@ -47,6 +47,12 @@ type Server struct {
 	multicastBindInf       *net.Interface
 	mserver                *MulticastServer
 	pushCmd                []string
+	cmdErrorRepeatTime     uint
+}
+
+type CmdRepeatPair struct {
+	Cmd        *exec.Cmd
+	RepeatTime uint8
 }
 
 var Instance *Server = func() (server *Server) {
@@ -101,6 +107,7 @@ var Instance *Server = func() (server *Server) {
 	if len(cmds) > 0 {
 		logger.logger.Printf("pusher cmds: \n %s", strings.Join(cmds, "\n"))
 	}
+	cmdErrorRepeatTime := utils.Conf().Section("cmd").Key("cmd_error_repeat_time").MustUint(5)
 	server = &Server{
 		SessionLogger:          logger,
 		Stoped:                 true,
@@ -128,6 +135,7 @@ var Instance *Server = func() (server *Server) {
 		multicastAddr:          rtspFile.Key("multicast_svc_discover_addr").MustString("232.2.2.2:8760"),
 		multicastBindInf:       multicastBindInf,
 		pushCmd:                cmds,
+		cmdErrorRepeatTime:     cmdErrorRepeatTime,
 	}
 
 	return
