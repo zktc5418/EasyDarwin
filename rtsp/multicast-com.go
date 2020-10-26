@@ -214,6 +214,11 @@ func (multiConn *MulticastClient) doMulticastListen(port uint16, multiAddr strin
 		logger.Printf("multicast start listen address port[%s:%d]", multiAddr, port)
 		defer logger.Printf("multicast stop listen address port[%s:%d]", multiAddr, port)
 		defer ReleaseMulticastAddress(multiAddr, port)
+		defer func() {
+			if err := recover(); err != nil {
+				logger.Printf("multicast rtsp packet error:%v", err)
+			}
+		}()
 		AddExistMulticastAddress(multiAddr, port)
 		timer := time.Unix(0, 0)
 		for !multiConn.Stopped {
