@@ -57,8 +57,15 @@ func (bag CmdRepeatBag) Run(overErrorTimeCallBack func()) {
 }
 
 func (bag CmdRepeatBag) PushOver4Kill() {
+	defer func() {
+		if err := recover(); err != nil {
+			bag.logger.Printf("kill  process error:%v", err)
+		}
+	}()
 	bag.PusherTerminated = true
-	if err := bag.Cmd.Process.Kill(); err != nil {
-		bag.logger.Printf("kill  process error:%v", err)
+	if bag.Cmd != nil && !bag.Cmd.ProcessState.Exited() {
+		if err := bag.Cmd.Process.Kill(); err != nil {
+			bag.logger.Printf("kill  process error:%v", err)
+		}
 	}
 }
