@@ -43,6 +43,15 @@ func (player *Player) QueueRTP(pack *RTPPack) *Player {
 	if player.paused && player.dropPacketWhenPaused {
 		return player
 	}
+	if !player.Stoped {
+		logger.Print("player is stoped, ignore send pack")
+		return player
+	}
+	go func() {
+		if err := recover(); err != nil {
+			logger.Printf("send player pack error:%v", err)
+		}
+	}()
 	//player.cond.L.Lock()
 	player.queue <- pack
 	//if oldLen := len(player.queue); player.queueLimit > 0 && oldLen > player.queueLimit {
