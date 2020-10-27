@@ -43,7 +43,7 @@ func (player *Player) QueueRTP(pack *RTPPack) *Player {
 	if player.paused && player.dropPacketWhenPaused {
 		return player
 	}
-	if !player.Stoped {
+	if player.Stoped {
 		logger.Print("player is stoped, ignore send pack")
 		return player
 	}
