@@ -54,8 +54,9 @@ func InitializeMulticastServer() (mserver *MulticastServer, err error) {
 	})
 	mserver.connCache.SetExpirationCallback(func(key string, udpConn interface{}) {
 		if conn := udpConn.(*net.UDPConn); conn != nil {
-			err := conn.Close()
-			mserver.logger.Println("Close UDP Connection error", err)
+			if err := conn.Close(); err != nil {
+				mserver.logger.Println("Close UDP Connection error", err)
+			}
 		}
 	})
 	go func() {
