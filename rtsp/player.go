@@ -47,7 +47,7 @@ func (player *Player) QueueRTP(pack *RTPPack) *Player {
 		logger.Print("player is stoped, ignore send pack")
 		return player
 	}
-	go func() {
+	defer func() {
 		if err := recover(); err != nil {
 			logger.Printf("send player pack error:%v", err)
 		}
