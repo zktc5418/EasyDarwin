@@ -105,10 +105,10 @@ func (s *UDPServer) SetupAudio() (err error) {
 		return
 	}
 	networkBuffer := server.networkBuffer
-	if err := s.AConn.SetReadBuffer(networkBuffer); err != nil {
+	if err = s.AConn.SetReadBuffer(networkBuffer); err != nil {
 		logger.Printf("udp server audio conn set read buffer error, %v", err)
 	}
-	if err := s.AConn.SetWriteBuffer(networkBuffer); err != nil {
+	if err = s.AConn.SetWriteBuffer(networkBuffer); err != nil {
 		logger.Printf("udp server audio conn set write buffer error, %v", err)
 	}
 	la := s.AConn.LocalAddr().String()
@@ -155,10 +155,10 @@ func (s *UDPServer) SetupAudio() (err error) {
 	if err != nil {
 		return
 	}
-	if err := s.AControlConn.SetReadBuffer(networkBuffer); err != nil {
+	if err = s.AControlConn.SetReadBuffer(networkBuffer); err != nil {
 		logger.Printf("udp server audio control conn set read buffer error, %v", err)
 	}
-	if err := s.AControlConn.SetWriteBuffer(networkBuffer); err != nil {
+	if err = s.AControlConn.SetWriteBuffer(networkBuffer); err != nil {
 		logger.Printf("udp server audio control conn set write buffer error, %v", err)
 	}
 	la = s.AControlConn.LocalAddr().String()
@@ -207,10 +207,10 @@ func (s *UDPServer) SetupVideo() (err error) {
 		return
 	}
 	networkBuffer := server.networkBuffer
-	if err := s.VConn.SetReadBuffer(networkBuffer); err != nil {
+	if err = s.VConn.SetReadBuffer(networkBuffer); err != nil {
 		logger.Printf("udp server video conn set read buffer error, %v", err)
 	}
-	if err := s.VConn.SetWriteBuffer(networkBuffer); err != nil {
+	if err = s.VConn.SetWriteBuffer(networkBuffer); err != nil {
 		logger.Printf("udp server video conn set write buffer error, %v", err)
 	}
 	la := s.VConn.LocalAddr().String()
@@ -258,10 +258,10 @@ func (s *UDPServer) SetupVideo() (err error) {
 	if err != nil {
 		return
 	}
-	if err := s.VControlConn.SetReadBuffer(networkBuffer); err != nil {
+	if err = s.VControlConn.SetReadBuffer(networkBuffer); err != nil {
 		logger.Printf("udp server video control conn set read buffer error, %v", err)
 	}
-	if err := s.VControlConn.SetWriteBuffer(networkBuffer); err != nil {
+	if err = s.VControlConn.SetWriteBuffer(networkBuffer); err != nil {
 		logger.Printf("udp server video control conn set write buffer error, %v", err)
 	}
 	la = s.VControlConn.LocalAddr().String()

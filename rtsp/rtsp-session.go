@@ -278,11 +278,7 @@ func (session *Session) Start() {
 					Buffer: rtpBuf,
 				}
 			default:
-				logger.Printf("unknow rtp pack type, %v", pack.Type)
-				continue
-			}
-			if pack == nil {
-				logger.Printf("session tcp got nil rtp pack")
+				logger.Printf("unknow rtp pack type, %v", channel)
 				continue
 			}
 			session.InBytes += rtpLen + 4
