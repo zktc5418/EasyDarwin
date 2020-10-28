@@ -22,15 +22,12 @@
       "stats",
       "Pushers",
       "Players",
-
       "stream",
       "StreamStart",
       "StreamStop",
-
       "record",
       "RecordFolders",
       "RecordFiles",
-
       "sys",
       "Login",
       "Logout",

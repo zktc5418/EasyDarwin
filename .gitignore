@@ -19,3 +19,4 @@ dev.ini
 debug
 debug.ini
 go.sum
+package-lock.json
