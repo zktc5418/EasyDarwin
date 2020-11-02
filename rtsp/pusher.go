@@ -504,7 +504,7 @@ func (pusher *Pusher) Start() {
 func (pusher *Pusher) Stop() {
 	defer func() {
 		if err := recover(); err != nil {
-			pusher.logger.Printf("stop pusher error:%v", err)
+			pusher.Session.logger.Printf("stop pusher error:%v", err)
 		}
 	}()
 	if pusher.Stoped() {
