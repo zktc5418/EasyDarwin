@@ -502,6 +502,14 @@ func (pusher *Pusher) Start() {
 }
 
 func (pusher *Pusher) Stop() {
+	defer func() {
+		if err := recover(); err != nil {
+			pusher.logger.Printf("stop pusher error:%v", err)
+		}
+	}()
+	if pusher.Stoped() {
+		return
+	}
 	close(pusher.queue)
 	if pusher.Session != nil {
 		pusher.Session.Stop()
@@ -616,7 +624,7 @@ func (pusher *Pusher) shouldSequenceStart(rtp *RTPInfo) bool {
 			singleSPSPPS := 0
 			for {
 				nalSize := ((uint16(rtp.Payload[off])) << 8) | uint16(rtp.Payload[off+1])
-				if nalSize < 1 {
+				if nalSize < 1 || len(rtp.Payload) < off+int(nalSize) {
 					return false
 				}
 				off += 2
