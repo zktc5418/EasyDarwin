@@ -15,9 +15,11 @@ type CmdRepeatBag struct {
 	cmdName          string
 	args             []string
 	logger           *log.Logger
+	pusherPath       string
+	sessionId        string
 }
 
-func NewCmdRepeatBag(cmdName string, args []string, MaxRepeatTime uint8, logger *log.Logger) (cmdBag *CmdRepeatBag) {
+func NewCmdRepeatBag(cmdName string, args []string, MaxRepeatTime uint8, logger *log.Logger, path string, sessionId string) (cmdBag *CmdRepeatBag) {
 	cmdBag = &CmdRepeatBag{
 		errorTime:        0,
 		PusherTerminated: false,
@@ -25,6 +27,8 @@ func NewCmdRepeatBag(cmdName string, args []string, MaxRepeatTime uint8, logger 
 		cmdName:          cmdName,
 		args:             args,
 		logger:           logger,
+		pusherPath:       path,
+		sessionId:        sessionId,
 	}
 	return
 }
@@ -43,7 +47,7 @@ func (bag CmdRepeatBag) Run(overErrorTimeCallBack func()) {
 			bag.logger.Printf("exit  process error:%v", err2)
 		}
 		if !bag.PusherTerminated {
-			if bag.errorTime < bag.MaxRepeatTime {
+			if pusher := GetServer().pushers[bag.pusherPath]; pusher != nil && pusher.Session.ID == bag.sessionId && bag.errorTime < bag.MaxRepeatTime {
 				//错误重试
 				time.Sleep(time.Duration(2) * time.Second)
 				bag.errorTime++

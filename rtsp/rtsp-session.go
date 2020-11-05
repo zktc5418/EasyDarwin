@@ -413,6 +413,7 @@ func (session *Session) handleRequest(req *Request) {
 		session.OutBytes += len(outBytes)
 		switch req.Method {
 		case "PLAY", "RECORD":
+			//开始拉流，开始推流
 			switch session.Type {
 			case SESSEION_TYPE_PLAYER:
 				if session.Pusher.HasPlayer(session.Player) {
@@ -425,6 +426,7 @@ func (session *Session) handleRequest(req *Request) {
 			}
 		case "TEARDOWN":
 			{
+				//停止推流
 				session.Stop()
 				return
 			}
@@ -460,6 +462,7 @@ func (session *Session) handleRequest(req *Request) {
 	case "OPTIONS":
 		res.Header["Public"] = "DESCRIBE, SETUP, TEARDOWN, PLAY, PAUSE, OPTIONS, ANNOUNCE, RECORD"
 	case "ANNOUNCE":
+		//推流
 		session.Type = SESSION_TYPE_PUSHER
 		session.URL = req.URL
 
@@ -527,6 +530,7 @@ func (session *Session) handleRequest(req *Request) {
 			}
 		}
 	case "DESCRIBE":
+		//拉流
 		session.Type = SESSEION_TYPE_PLAYER
 		session.URL = req.URL
 
@@ -706,6 +710,7 @@ func (session *Session) handleRequest(req *Request) {
 		}
 		res.Header["Transport"] = ts
 	case "PLAY":
+		//开始拉流
 		// error status. PLAY without ANNOUNCE or DESCRIBE.
 		if session.Pusher == nil {
 			res.StatusCode = 500
@@ -714,6 +719,7 @@ func (session *Session) handleRequest(req *Request) {
 		}
 		res.Header["Range"] = req.Header["Range"]
 	case "RECORD":
+		//开始推流
 		// error status. RECORD without ANNOUNCE or DESCRIBE.
 		if session.Pusher == nil {
 			res.StatusCode = 500

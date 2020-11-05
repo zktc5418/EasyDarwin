@@ -45,8 +45,31 @@ type Server struct {
 	multicastAddr          string
 	multicastBindInf       *net.Interface
 	mserver                *MulticastServer
-	pushCmd                []string
-	cmdErrorRepeatTime     uint8
+	// /live1/stream123   key::live1 执行命令map
+	// /live2/stream123	  key::live2 执行命令map
+	// 环境变量：EASYDARWIN_PUSH_FFMPEG_MAP_CMD_key=
+	pushCmdDirMap map[string][]string
+	// /asd/streamsad	  key没有在map中执行的命令
+	// EASYDARWIN_PUSH_FFMPEG_OTHER_CMD
+	otherPushCmd []string
+	// 所有命令推流都要执行的命令
+	// 环境变量：EASYDARWIN_PUSH_FFMPEG_CMD
+	allPushCmd []string
+	// 命令执行错误时重试次数
+	// 环境变量：EASYDARWIN_CMD_ERROR_REPEAT_TIME
+	cmdErrorRepeatTime uint8
+	//开始拉流时触发api调用
+	// 环境变量：EASYDARWIN_REST_API_ON_PLAY
+	onPlay []string
+	//停止拉流时触发api调用
+	// 环境变量：EASYDARWIN_REST_API_ON_STOP
+	onStop []string
+	//开始推流时触发api调用
+	// 环境变量：EASYDARWIN_REST_API_ON_PUBLISH
+	onPublish []string
+	//停止推流时触发api调用
+	// 环境变量：EASYDARWIN_REST_API_ON_TEARDOWN
+	onTeardown []string
 }
 
 var Instance *Server = func() (server *Server) {
@@ -81,33 +104,53 @@ var Instance *Server = func() (server *Server) {
 			logger.logger.Fatalf("no multicast interfaces found")
 		}
 	}
-	var cmds []string
+	var allCmds []string
+	pushCmdMap := make(map[string][]string)
+	var otherCmds []string
 	environs := os.Environ()
 	envKey := "EASYDARWIN_PUSH_FFMPEG_CMD="
 	repeatTimeEnvKey := "EASYDARWIN_CMD_ERROR_REPEAT_TIME="
+	otherCMDEnvKey := "EASYDARWIN_PUSH_FFMPEG_OTHER_CMD="
+	mapCMDEnvKey := "EASYDARWIN_PUSH_FFMPEG_MAP_CMD_"
+	equalRegx := regexp.MustCompile("=")
 	var envRepeatTime uint8
 	for _, environ := range environs {
 		if strings.HasPrefix(environ, envKey) {
 			envVal := environ[len(envKey):]
-			cmds = append(cmds, strings.Split(envVal, ";")...)
-		}
-		if strings.HasPrefix(environ, repeatTimeEnvKey) {
-			envVal := environ[len(envKey):]
+			allCmds = append(allCmds, strings.Split(envVal, ";")...)
+		} else if strings.HasPrefix(environ, repeatTimeEnvKey) {
+			envVal := environ[len(repeatTimeEnvKey):]
 			if intRaw, err := strconv.ParseUint(envVal, 0, 8); err == nil {
 				envRepeatTime = uint8(intRaw)
 			}
+		} else if strings.HasPrefix(environ, otherCMDEnvKey) {
+			envVal := environ[len(otherCMDEnvKey):]
+			otherCmds = append(otherCmds, strings.Split(envVal, ";")...)
+		} else if strings.HasPrefix(environ, mapCMDEnvKey) {
+			split := equalRegx.Split(environ, 2)
+			pathKey := split[0][len(mapCMDEnvKey):]
+			pushCmdMap[pathKey] = append(pushCmdMap[pathKey], strings.Split(split[1], ";")...)
 		}
 	}
-	if len(cmds) == 0 {
-		cmdKeys := utils.Conf().Section("cmd").Keys()
-		for _, key := range cmdKeys {
-			if strings.HasPrefix(key.Name(), "execute_") {
-				cmds = append(cmds, key.Value())
-			}
+	emptyAllCmds := len(allCmds) == 0
+	emptyOtherCmds := len(otherCmds) == 0
+	emptyMapCmds := len(pushCmdMap) == 0
+	cmdKeys := utils.Conf().Section("cmd").Keys()
+	for _, key := range cmdKeys {
+		if emptyAllCmds && strings.HasPrefix(key.Name(), "all_execute_") {
+			allCmds = append(allCmds, key.Value())
+		}
+		if emptyOtherCmds && strings.HasPrefix(key.Name(), "other_execute_") {
+			otherCmds = append(otherCmds, key.Value())
+		}
+		if emptyMapCmds && strings.HasPrefix(key.Name(), "map_execute_") {
+			dirKey := strings.Replace(key.Name(), "map_execute_", "", 1)
+			pushers := pushCmdMap[dirKey]
+			pushCmdMap[dirKey] = append(pushers, key.Value())
 		}
 	}
-	if len(cmds) > 0 {
-		logger.logger.Printf("pusher cmds: \n %s", strings.Join(cmds, "\n"))
+	if len(allCmds) > 0 {
+		logger.logger.Printf("pusher cmds: \n %s", strings.Join(allCmds, "\n"))
 	}
 	if envRepeatTime == 0 {
 		envRepeatTime = uint8(utils.Conf().Section("cmd").Key("cmd_error_repeat_time").MustUint(5))
@@ -138,7 +181,9 @@ var Instance *Server = func() (server *Server) {
 		enableMulticast:        rtspFile.Key("enable_multicast").MustBool(false),
 		multicastAddr:          rtspFile.Key("multicast_svc_discover_addr").MustString("232.2.2.2:8760"),
 		multicastBindInf:       multicastBindInf,
-		pushCmd:                cmds,
+		allPushCmd:             allCmds,
+		pushCmdDirMap:          pushCmdMap,
+		otherPushCmd:           otherCmds,
 		cmdErrorRepeatTime:     envRepeatTime,
 	}
 
@@ -221,27 +266,7 @@ func (server *Server) Start() (err error) {
 							paramsOfThisPath := strings.Split(paramStr, " ")
 							params = append(params[:6], append(paramsOfThisPath, params[6:]...)...)
 						}
-						// ffmpeg -i ~/Downloads/720p.mp4 -s 640x360 -g 15 -c:a aac -hls_time 5 -hls_list_size 0 record.m3u8
-						//cmd := exec.Command(ffmpeg, params...)
-						//f, err := os.OpenFile(path.Join(dir, fmt.Sprintf("log.txt")), os.O_RDWR|os.O_CREATE, 0755)
-						//if err == nil {
-						//	cmd.Stdout = f
-						//	cmd.Stderr = f
-						//}
-						//err = cmd.Start()
-						//if err != nil {
-						//	logger.Printf("Start ffmpeg err:%v", err)
-						//}
-						//go func() {
-						//	//防止转码进程自己因为错误停止，出现僵尸进程
-						//	if err2 := cmd.Wait(); err2 != nil {
-						//		logger.Printf("exit  process error:%v", err2)
-						//	}
-						//	time.Sleep(time.Duration(2) * time.Second)
-						//	delete(pusher2ffmpegFileMap, pusher)
-						//	delete(pusher2ffmpegMap, pusher)
-						//}()
-						bag := NewCmdRepeatBag(ffmpeg, params, server.cmdErrorRepeatTime, server.logger)
+						bag := NewCmdRepeatBag(ffmpeg, params, server.cmdErrorRepeatTime, server.logger, pusher.Path(), pusher.Session.ID)
 						pusher2ffmpegMap[pusher] = bag
 						bag.Run(func() {
 							delete(pusher2ffmpegMap, pusher)
@@ -251,12 +276,17 @@ func (server *Server) Start() (err error) {
 						logger.Printf("addPusherChan closed")
 					}
 				}
-				if len(server.pushCmd) > 0 && pusher.MulticastClient == nil {
+				if pusher.MulticastClient == nil {
 					cmdSet := hashset.New()
-					//var cmds []*exec.Cmd
-					//var openFiles []*os.File
-					for _, cmdRaw := range server.pushCmd {
-						cmd := strings.ReplaceAll(cmdRaw, "{path}", strings.TrimLeft(pusher.Path(), "/"))
+					path := strings.TrimLeft(pusher.Path(), "/")
+					pathRegx, _ := regexp.Compile("[/]+")
+					dir := "__default__"
+					if dirs := pathRegx.Split(path, 2); len(dirs) > 1 {
+						dir = dirs[0]
+					}
+					//运行指定一级路径ffmpeg命令
+					for _, cmdRaw := range server.allPushCmd {
+						cmd := strings.ReplaceAll(cmdRaw, "{path}", path)
 						cmd = strings.TrimLeft(strings.TrimSpace(cmd), "ffmpeg")
 						parametersRaw := regx.Split(cmd, -1)
 						var parameters []string
@@ -265,36 +295,53 @@ func (server *Server) Start() (err error) {
 								parameters = append(parameters, parameter)
 							}
 						}
-						//execCmd := exec.Command(server.ffmpeg, parameters...)
-						//f, err := os.OpenFile(path.Join(utils.CWD(), fmt.Sprintf("exec.log")), os.O_RDWR|os.O_CREATE, 0755)
-						//if err == nil {
-						//	execCmd.Stdout = f
-						//	execCmd.Stderr = f
-						//}
-						//err = execCmd.Start()
-						//if err != nil {
-						//	logger.Printf("Start exec err:%v", err)
-						//}
-						//cmdSet.Add(execCmd)
-						//openFileSet.Add(f)
-						////cmds = append(cmds, execCmd)
-						////openFiles = append(openFiles, f)
-						//go func() {
-						//	//防止转码进程自己因为错误停止，出现僵尸进程
-						//	if err2 := execCmd.Wait(); err2 != nil {
-						//		logger.Printf("exit  process error:%v", err2)
-						//	}
-						//	time.Sleep(time.Duration(2) * time.Second)
-						//	cmdSet.Remove(execCmd)
-						//	openFileSet.Remove(f)
-						//}()
-						bag := NewCmdRepeatBag(server.ffmpeg, parameters, server.cmdErrorRepeatTime, server.logger)
+						bag := NewCmdRepeatBag(server.ffmpeg, parameters, server.cmdErrorRepeatTime, server.logger, pusher.Path(), pusher.Session.ID)
 						cmdSet.Add(bag)
 						bag.Run(func() {
 							cmdSet.Remove(bag)
 						})
 					}
-					pusher2CmdMap[pusher] = cmdSet
+					if cmds := server.pushCmdDirMap[dir]; len(cmds) > 0 {
+						//运行指定一级路径ffmpeg命令
+						for _, cmdRaw := range cmds {
+							cmd := strings.ReplaceAll(cmdRaw, "{path}", path)
+							cmd = strings.TrimLeft(strings.TrimSpace(cmd), "ffmpeg")
+							parametersRaw := regx.Split(cmd, -1)
+							var parameters []string
+							for _, parameter := range parametersRaw {
+								if parameter != "" {
+									parameters = append(parameters, parameter)
+								}
+							}
+							bag := NewCmdRepeatBag(server.ffmpeg, parameters, server.cmdErrorRepeatTime, server.logger, pusher.Path(), pusher.Session.ID)
+							cmdSet.Add(bag)
+							bag.Run(func() {
+								cmdSet.Remove(bag)
+							})
+						}
+					} else if len(server.otherPushCmd) > 0 {
+						//否则运行其他未指定的一级路径ffmpeg命令
+						for _, cmdRaw := range server.otherPushCmd {
+							cmd := strings.ReplaceAll(cmdRaw, "{path}", path)
+							cmd = strings.TrimLeft(strings.TrimSpace(cmd), "ffmpeg")
+							parametersRaw := regx.Split(cmd, -1)
+							var parameters []string
+							for _, parameter := range parametersRaw {
+								if parameter != "" {
+									parameters = append(parameters, parameter)
+								}
+							}
+							bag := NewCmdRepeatBag(server.ffmpeg, parameters, server.cmdErrorRepeatTime, server.logger, pusher.Path(), pusher.Session.ID)
+							cmdSet.Add(bag)
+							bag.Run(func() {
+								cmdSet.Remove(bag)
+							})
+						}
+					}
+
+					if cmdSet.Size() > 0 {
+						pusher2CmdMap[pusher] = cmdSet
+					}
 				}
 			case pusher, removeChnOk = <-server.removePusherCh:
 				if SaveStreamToLocal {
@@ -314,12 +361,14 @@ func (server *Server) Start() (err error) {
 						logger.Printf("removePusherChan closed")
 					}
 				}
-				if len(server.pushCmd) > 0 && pusher.MulticastClient == nil {
-					for _, bagRaw := range pusher2CmdMap[pusher].Values() {
-						bag := bagRaw.(*CmdRepeatBag)
-						bag.PushOver4Kill()
+				if pusher.MulticastClient == nil {
+					if bags := pusher2CmdMap[pusher]; bags != nil {
+						for _, bagRaw := range bags.Values() {
+							bag := bagRaw.(*CmdRepeatBag)
+							bag.PushOver4Kill()
+						}
+						delete(pusher2CmdMap, pusher)
 					}
-					delete(pusher2CmdMap, pusher)
 				}
 			}
 		}
