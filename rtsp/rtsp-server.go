@@ -18,33 +18,36 @@ import (
 
 type Server struct {
 	SessionLogger
-	TCPListener            *net.TCPListener
-	TCPPort                int
-	Stoped                 bool
-	pushers                map[string]*Pusher // Path <-> Pusher
-	pushersLock            sync.RWMutex
-	addPusherCh            chan *Pusher
-	removePusherCh         chan *Pusher
-	rtpMinUdpPort          uint16
-	rtpMaxUdpPort          uint16
-	networkBuffer          int
-	localRecord            byte
-	ffmpeg                 string
-	m3u8DirPath            string
-	tsDurationSecond       int
-	gopCacheEnable         bool
-	debugLogEnable         bool
-	playerQueueLimit       int
-	dropPacketWhenPaused   bool
-	rtspTimeoutMillisecond int
-	authorizationEnable    bool
-	closeOld               bool
-	svcDiscoverMultiAddr   string
-	svcDiscoverMultiPort   uint16
-	enableMulticast        bool
-	multicastAddr          string
-	multicastBindInf       *net.Interface
-	mserver                *MulticastServer
+	TCPListener                   *net.TCPListener
+	TCPPort                       int
+	Stoped                        bool
+	pushers                       map[string]*Pusher // Path <-> Pusher
+	pushersLock                   sync.RWMutex
+	addPusherCh                   chan *Pusher
+	removePusherCh                chan *Pusher
+	rtpMinUdpPort                 uint16
+	rtpMaxUdpPort                 uint16
+	networkBuffer                 int
+	localRecord                   byte
+	ffmpeg                        string
+	m3u8DirPath                   string
+	tsDurationSecond              int
+	gopCacheEnable                bool
+	debugLogEnable                bool
+	playerQueueLimit              int
+	dropPacketWhenPaused          bool
+	rtspTimeoutMillisecond        int
+	localAuthorizationEnable      bool
+	remoteHttpAuthorizationEnable bool
+	remoteHttpAuthorizationUrl    string
+	authorizationType             AuthorizationType
+	closeOld                      bool
+	svcDiscoverMultiAddr          string
+	svcDiscoverMultiPort          uint16
+	enableMulticast               bool
+	multicastAddr                 string
+	multicastBindInf              *net.Interface
+	mserver                       *MulticastServer
 	// /live1/stream123   key::live1 执行命令map
 	// /live2/stream123	  key::live2 执行命令map
 	// 环境变量：EASYDARWIN_PUSH_FFMPEG_MAP_CMD_key=
@@ -104,16 +107,37 @@ var Instance *Server = func() (server *Server) {
 			logger.logger.Fatalf("no multicast interfaces found")
 		}
 	}
-	var allCmds []string
-	pushCmdMap := make(map[string][]string)
-	var otherCmds []string
-	environs := os.Environ()
-	envKey := "EASYDARWIN_PUSH_FFMPEG_CMD="
-	repeatTimeEnvKey := "EASYDARWIN_CMD_ERROR_REPEAT_TIME="
-	otherCMDEnvKey := "EASYDARWIN_PUSH_FFMPEG_OTHER_CMD="
-	mapCMDEnvKey := "EASYDARWIN_PUSH_FFMPEG_MAP_CMD_"
-	equalRegx := regexp.MustCompile("=")
-	var envRepeatTime uint8
+	var (
+		onPlay     []string
+		onStop     []string
+		onPublish  []string
+		onTeardown []string
+	)
+	if httpApis := rtspFile.Key("on_play").Value(); httpApis != "" {
+		onPlay = strings.Split(httpApis, ";")
+	}
+	if httpApis := rtspFile.Key("on_stop").Value(); httpApis != "" {
+		onStop = strings.Split(httpApis, ";")
+	}
+	if httpApis := rtspFile.Key("on_publish").Value(); httpApis != "" {
+		onPublish = strings.Split(httpApis, ";")
+	}
+	if httpApis := rtspFile.Key("on_teardown").Value(); httpApis != "" {
+		onTeardown = strings.Split(httpApis, ";")
+	}
+
+	var (
+		allCmds          []string
+		otherCmds        []string
+		envRepeatTime    uint8
+		pushCmdMap       = make(map[string][]string)
+		environs         = os.Environ()
+		envKey           = "EASYDARWIN_PUSH_FFMPEG_CMD="
+		repeatTimeEnvKey = "EASYDARWIN_CMD_ERROR_REPEAT_TIME="
+		otherCMDEnvKey   = "EASYDARWIN_PUSH_FFMPEG_OTHER_CMD="
+		mapCMDEnvKey     = "EASYDARWIN_PUSH_FFMPEG_MAP_CMD_"
+		equalRegx        = regexp.MustCompile("=")
+	)
 	for _, environ := range environs {
 		if strings.HasPrefix(environ, envKey) {
 			envVal := environ[len(envKey):]
@@ -132,10 +156,12 @@ var Instance *Server = func() (server *Server) {
 			pushCmdMap[pathKey] = append(pushCmdMap[pathKey], strings.Split(split[1], ";")...)
 		}
 	}
-	emptyAllCmds := len(allCmds) == 0
-	emptyOtherCmds := len(otherCmds) == 0
-	emptyMapCmds := len(pushCmdMap) == 0
-	cmdKeys := utils.Conf().Section("cmd").Keys()
+	var (
+		emptyAllCmds   = len(allCmds) == 0
+		emptyOtherCmds = len(otherCmds) == 0
+		emptyMapCmds   = len(pushCmdMap) == 0
+		cmdKeys        = utils.Conf().Section("cmd").Keys()
+	)
 	for _, key := range cmdKeys {
 		if emptyAllCmds && strings.HasPrefix(key.Name(), "all_execute_") {
 			allCmds = append(allCmds, key.Value())
@@ -156,37 +182,46 @@ var Instance *Server = func() (server *Server) {
 		envRepeatTime = uint8(utils.Conf().Section("cmd").Key("cmd_error_repeat_time").MustUint(5))
 	}
 	server = &Server{
-		SessionLogger:          logger,
-		Stoped:                 true,
-		TCPPort:                rtspFile.Key("port").MustInt(554),
-		pushers:                make(map[string]*Pusher),
-		addPusherCh:            make(chan *Pusher),
-		removePusherCh:         make(chan *Pusher),
-		rtpMinUdpPort:          uint16(rtpMinPort),
-		rtpMaxUdpPort:          uint16(rtpMaxPort),
-		networkBuffer:          networkBuffer,
-		localRecord:            byte(localRecord),
-		ffmpeg:                 ffmpeg,
-		m3u8DirPath:            m3u8_dir_path,
-		tsDurationSecond:       ts_duration_second,
-		gopCacheEnable:         rtspFile.Key("gop_cache_enable").MustBool(true),
-		debugLogEnable:         rtspFile.Key("debug_log_enable").MustBool(false),
-		playerQueueLimit:       rtspFile.Key("player_queue_limit").MustInt(0),
-		dropPacketWhenPaused:   rtspFile.Key("drop_packet_when_paused").MustBool(false),
-		rtspTimeoutMillisecond: rtspFile.Key("timeout").MustInt(0),
-		authorizationEnable:    rtspFile.Key("authorization_enable").MustBool(false),
-		closeOld:               rtspFile.Key("close_old").MustBool(false),
-		svcDiscoverMultiAddr:   rtspFile.Key("svc_discover_multiaddr").MustString("239.12.12.12"),
-		svcDiscoverMultiPort:   uint16(rtspFile.Key("svc_discover_multiport").MustUint(1212)),
-		enableMulticast:        rtspFile.Key("enable_multicast").MustBool(false),
-		multicastAddr:          rtspFile.Key("multicast_svc_discover_addr").MustString("232.2.2.2:8760"),
-		multicastBindInf:       multicastBindInf,
-		allPushCmd:             allCmds,
-		pushCmdDirMap:          pushCmdMap,
-		otherPushCmd:           otherCmds,
-		cmdErrorRepeatTime:     envRepeatTime,
+		SessionLogger:                 logger,
+		Stoped:                        true,
+		TCPPort:                       rtspFile.Key("port").MustInt(554),
+		pushers:                       make(map[string]*Pusher),
+		addPusherCh:                   make(chan *Pusher),
+		removePusherCh:                make(chan *Pusher),
+		rtpMinUdpPort:                 uint16(rtpMinPort),
+		rtpMaxUdpPort:                 uint16(rtpMaxPort),
+		networkBuffer:                 networkBuffer,
+		localRecord:                   byte(localRecord),
+		ffmpeg:                        ffmpeg,
+		m3u8DirPath:                   m3u8_dir_path,
+		tsDurationSecond:              ts_duration_second,
+		gopCacheEnable:                rtspFile.Key("gop_cache_enable").MustBool(true),
+		debugLogEnable:                rtspFile.Key("debug_log_enable").MustBool(false),
+		playerQueueLimit:              rtspFile.Key("player_queue_limit").MustInt(0),
+		dropPacketWhenPaused:          rtspFile.Key("drop_packet_when_paused").MustBool(false),
+		rtspTimeoutMillisecond:        rtspFile.Key("timeout").MustInt(0),
+		localAuthorizationEnable:      rtspFile.Key("local_authorization_enable").MustBool(false),
+		remoteHttpAuthorizationEnable: rtspFile.Key("remote_http_authorization_enable").MustBool(false),
+		remoteHttpAuthorizationUrl:    rtspFile.Key("remote_http_authorization_url").Value(),
+		authorizationType:             AuthorizationType(rtspFile.Key("authorization_type").Value()),
+		closeOld:                      rtspFile.Key("close_old").MustBool(false),
+		svcDiscoverMultiAddr:          rtspFile.Key("svc_discover_multiaddr").MustString("239.12.12.12"),
+		svcDiscoverMultiPort:          uint16(rtspFile.Key("svc_discover_multiport").MustUint(1212)),
+		enableMulticast:               rtspFile.Key("enable_multicast").MustBool(false),
+		multicastAddr:                 rtspFile.Key("multicast_svc_discover_addr").MustString("232.2.2.2:8760"),
+		multicastBindInf:              multicastBindInf,
+		allPushCmd:                    allCmds,
+		pushCmdDirMap:                 pushCmdMap,
+		otherPushCmd:                  otherCmds,
+		cmdErrorRepeatTime:            envRepeatTime,
+		onPlay:                        onPlay,
+		onStop:                        onStop,
+		onPublish:                     onPublish,
+		onTeardown:                    onTeardown,
 	}
-
+	if !server.localAuthorizationEnable && server.remoteHttpAuthorizationEnable && server.remoteHttpAuthorizationUrl == "" {
+		logger.logger.Panicf("server configed remoteHttpAuthorizationEnable, but not set remoteHttpAuthorizationUrl")
+	}
 	return
 }()
 

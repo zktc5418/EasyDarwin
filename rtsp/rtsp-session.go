@@ -17,8 +17,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/bruce-qin/EasyDarwin/models"
-	"github.com/bruce-qin/EasyGoLib/db"
 	"github.com/bruce-qin/EasyGoLib/utils"
 
 	"github.com/teris-io/shortid"
@@ -102,10 +100,12 @@ type Session struct {
 	SDPRaw    string
 	SDPMap    map[string]*SDPInfo
 
-	authorizationEnable bool
-	nonce               string
-	closeOld            bool
-	debugLogEnable      bool
+	localAuthorizationEnable      bool
+	remoteHttpAuthorizationEnable bool
+	authorizationType             AuthorizationType
+	nonce                         string
+	closeOld                      bool
+	debugLogEnable                bool
 
 	AControl string
 	VControl string
@@ -149,23 +149,25 @@ func NewSession(server *Server, conn net.Conn) *Session {
 	timeoutMillis := server.rtspTimeoutMillisecond
 	timeoutTCPConn := &RichConn{conn, time.Duration(timeoutMillis) * time.Millisecond}
 	session := &Session{
-		ID:                  shortid.MustGenerate(),
-		Server:              server,
-		Conn:                timeoutTCPConn,
-		connRW:              bufio.NewReadWriter(bufio.NewReaderSize(timeoutTCPConn, networkBuffer), bufio.NewWriterSize(timeoutTCPConn, networkBuffer)),
-		StartAt:             time.Now(),
-		Timeout:             server.rtspTimeoutMillisecond,
-		authorizationEnable: server.authorizationEnable,
-		debugLogEnable:      server.debugLogEnable,
-		RTPHandles:          make([]func(*RTPPack), 0),
-		StopHandles:         make([]func(), 0),
-		vRTPChannel:         -1,
-		vRTPControlChannel:  -1,
-		aRTPChannel:         -1,
-		aRTPControlChannel:  -1,
-		closeOld:            server.closeOld,
-		rtpPackHandelChan:   make(chan *RTPPack, 10),
-		requestHandelChan:   make(chan *Request, 1),
+		ID:                            shortid.MustGenerate(),
+		Server:                        server,
+		Conn:                          timeoutTCPConn,
+		connRW:                        bufio.NewReadWriter(bufio.NewReaderSize(timeoutTCPConn, networkBuffer), bufio.NewWriterSize(timeoutTCPConn, networkBuffer)),
+		StartAt:                       time.Now(),
+		Timeout:                       server.rtspTimeoutMillisecond,
+		localAuthorizationEnable:      server.localAuthorizationEnable,
+		remoteHttpAuthorizationEnable: server.remoteHttpAuthorizationEnable,
+		authorizationType:             server.authorizationType,
+		debugLogEnable:                server.debugLogEnable,
+		RTPHandles:                    make([]func(*RTPPack), 0),
+		StopHandles:                   make([]func(), 0),
+		vRTPChannel:                   -1,
+		vRTPControlChannel:            -1,
+		aRTPChannel:                   -1,
+		aRTPControlChannel:            -1,
+		closeOld:                      server.closeOld,
+		rtpPackHandelChan:             make(chan *RTPPack, 10),
+		requestHandelChan:             make(chan *Request, 1),
 	}
 
 	session.logger = log.New(os.Stdout, fmt.Sprintf("[%s]", session.ID), log.LstdFlags|log.Lshortfile)
@@ -181,6 +183,7 @@ func (session *Session) Stop() {
 		return
 	}
 	session.Stoped = true
+	go session.ToCloseWebHookInfo().ExecuteWebHookNotify()
 	for _, h := range session.StopHandles {
 		h()
 	}
@@ -329,68 +332,6 @@ func (session *Session) Start() {
 	}
 }
 
-func CheckAuth(authLine string, method string, sessionNonce string) error {
-	realmRex := regexp.MustCompile(`realm="(.*?)"`)
-	nonceRex := regexp.MustCompile(`nonce="(.*?)"`)
-	usernameRex := regexp.MustCompile(`username="(.*?)"`)
-	responseRex := regexp.MustCompile(`response="(.*?)"`)
-	uriRex := regexp.MustCompile(`uri="(.*?)"`)
-
-	realm := ""
-	nonce := ""
-	username := ""
-	response := ""
-	uri := ""
-	result1 := realmRex.FindStringSubmatch(authLine)
-	if len(result1) == 2 {
-		realm = result1[1]
-	} else {
-		return fmt.Errorf("CheckAuth error : no realm found")
-	}
-	result1 = nonceRex.FindStringSubmatch(authLine)
-	if len(result1) == 2 {
-		nonce = result1[1]
-	} else {
-		return fmt.Errorf("CheckAuth error : no nonce found")
-	}
-	if sessionNonce != nonce {
-		return fmt.Errorf("CheckAuth error : sessionNonce not same as nonce")
-	}
-
-	result1 = usernameRex.FindStringSubmatch(authLine)
-	if len(result1) == 2 {
-		username = result1[1]
-	} else {
-		return fmt.Errorf("CheckAuth error : username not found")
-	}
-
-	result1 = responseRex.FindStringSubmatch(authLine)
-	if len(result1) == 2 {
-		response = result1[1]
-	} else {
-		return fmt.Errorf("CheckAuth error : response not found")
-	}
-
-	result1 = uriRex.FindStringSubmatch(authLine)
-	if len(result1) == 2 {
-		uri = result1[1]
-	} else {
-		return fmt.Errorf("CheckAuth error : uri not found")
-	}
-	var user models.User
-	err := db.SQLite.Where("Username = ?", username).First(&user).Error
-	if err != nil {
-		return fmt.Errorf("CheckAuth error : user not exists")
-	}
-	md5UserRealmPwd := fmt.Sprintf("%x", md5.Sum([]byte(fmt.Sprintf("%s:%s:%s", username, realm, user.Password))))
-	md5MethodURL := fmt.Sprintf("%x", md5.Sum([]byte(fmt.Sprintf("%s:%s", method, uri))))
-	myResponse := fmt.Sprintf("%x", md5.Sum([]byte(fmt.Sprintf("%s:%s:%s", md5UserRealmPwd, nonce, md5MethodURL))))
-	if myResponse != response {
-		return fmt.Errorf("CheckAuth error : response not equal")
-	}
-	return nil
-}
-
 func (session *Session) handleRequest(req *Request) {
 	//if session.Timeout > 0 {
 	//	session.Conn.SetDeadline(time.Now().Add(time.Duration(session.Timeout) * time.Second))
@@ -437,15 +378,25 @@ func (session *Session) handleRequest(req *Request) {
 		}
 	}()
 	if req.Method != "OPTIONS" {
-		if session.authorizationEnable {
+		if session.localAuthorizationEnable || session.remoteHttpAuthorizationEnable {
 			authLine := req.Header["Authorization"]
 			authFailed := true
 			if authLine != "" {
-				err := CheckAuth(authLine, req.Method, session.nonce)
-				if err == nil {
-					authFailed = false
-				} else {
+				info, err := DecodeAuthorizationInfo(authLine, session.nonce, req.Method)
+				if err != nil {
 					logger.Printf("%v", err)
+				} else if session.localAuthorizationEnable {
+					if err = info.CheckAuthLocal(); err != nil {
+						logger.Printf("%v", err)
+					} else {
+						authFailed = false
+					}
+				} else if session.remoteHttpAuthorizationEnable {
+					if err = info.CheckAuthHttpRemote(); err != nil {
+						logger.Printf("%v", err)
+					} else {
+						authFailed = false
+					}
 				}
 			}
 			if authFailed {
@@ -472,6 +423,12 @@ func (session *Session) handleRequest(req *Request) {
 			res.Status = "Invalid URL"
 			return
 		}
+		if continueProcess := NewWebHookInfo(ON_PUBLISH, session.ID, SESSION_TYPE_PUSHER, TRANS_TYPE_TCP, req.URL, surl.Path, req.Body).ExecuteWebHookNotify(); !continueProcess {
+			res.StatusCode = 500
+			res.Status = "Server not allowed you push stream"
+			return
+		}
+
 		session.Path = surl.Path
 
 		session.SDPRaw = req.Body
@@ -538,6 +495,11 @@ func (session *Session) handleRequest(req *Request) {
 		if err != nil {
 			res.StatusCode = 500
 			res.Status = "Invalid URL"
+			return
+		}
+		if continueProcess := NewWebHookInfo(ON_PLAY, session.ID, SESSEION_TYPE_PLAYER, TRANS_TYPE_TCP, req.URL, url.Path, req.Body).ExecuteWebHookNotify(); !continueProcess {
+			res.StatusCode = 500
+			res.Status = "Server not allowed you pull stream"
 			return
 		}
 		session.Path = url.Path
