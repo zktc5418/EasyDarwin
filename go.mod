@@ -1,6 +1,6 @@
 module github.com/bruce-qin/EasyDarwin
 
-go 1.14
+go 1.15
 
 require (
 	github.com/MeloQi/service v0.0.0-20191030061151-7762127fe623
@@ -38,14 +38,14 @@ require (
 	github.com/onsi/gomega v1.10.0 // indirect
 	github.com/pixelbender/go-sdp v1.0.0
 	github.com/pkg/errors v0.9.1 // indirect
-	github.com/shirou/gopsutil v2.20.9+incompatible
+	github.com/shirou/gopsutil v3.20.10+incompatible
 	github.com/smartystreets/goconvey v1.6.4 // indirect
 	github.com/tebeka/strftime v0.1.4 // indirect
 	github.com/teris-io/shortid v0.0.0-20171029131806-771a37caa5cf
 	github.com/ugorji/go v1.1.13 // indirect
 	golang.org/x/crypto v0.0.0-20201016220609-9e8e0b390897 // indirect
-	golang.org/x/net v0.0.0-20201027133719-8eef5233e2a1
-	golang.org/x/sys v0.0.0-20201027140754-0fcbb8f4928c // indirect
+	golang.org/x/net v0.0.0-20201031054903-ff519b6c9102
+	golang.org/x/sys v0.0.0-20201107080550-4d91cf3a1aaf // indirect
 	google.golang.org/protobuf v1.25.0 // indirect
 	gopkg.in/ini.v1 v1.56.0 // indirect
 	gopkg.in/yaml.v2 v2.3.0 // indirect
