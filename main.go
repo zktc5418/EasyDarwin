@@ -25,10 +25,13 @@ var (
 )
 
 type program struct {
-	httpPort   int
-	httpServer *http.Server
-	rtspPort   int
-	rtspServer *rtsp.Server
+	httpPort         int
+	httpServer       *http.Server
+	EnableHttpStream bool
+	httpStreamPort   uint16
+	httpStreamServer *http.Server
+	rtspPort         int
+	rtspServer       *rtsp.Server
 }
 
 func (p *program) StopHTTP() (err error) {
@@ -58,6 +61,36 @@ func (p *program) StartHTTP() (err error) {
 		}
 		log.Println("http server end")
 	}()
+	return
+}
+
+func (p *program) StartHttpStream() {
+	p.httpStreamServer = &http.Server{
+		Addr:              fmt.Sprintf(":%d", p.httpStreamPort),
+		Handler:           rtsp.Mp3StreamRouter,
+		ReadHeaderTimeout: 5 * time.Second,
+		IdleTimeout:       0,
+	}
+	link := fmt.Sprintf("http://%s:%d", utils.LocalIP(), p.httpStreamPort)
+	log.Println("http stream server start -->", link)
+	go func() {
+		if err := p.httpStreamServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Println("start http stream server error", err)
+		}
+		log.Println("http stream server end")
+	}()
+}
+
+func (p *program) StopHttpStream() (err error) {
+	if p.httpStreamServer == nil {
+		err = fmt.Errorf("HTTP Stream Server Not Found")
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err = p.httpStreamServer.Shutdown(ctx); err != nil {
+		return
+	}
 	return
 }
 
@@ -110,7 +143,13 @@ func (p *program) Start(s service.Service) (err error) {
 	}
 	p.StartRTSP()
 	p.StartHTTP()
-
+	if p.EnableHttpStream {
+		err = rtsp.InitMp3Stream()
+		if err != nil {
+			return
+		}
+		p.StartHttpStream()
+	}
 	if !utils.Debug {
 		log.Println("log files -->", utils.LogDir())
 		log.SetOutput(utils.GetLogWriter())
@@ -119,14 +158,21 @@ func (p *program) Start(s service.Service) (err error) {
 		for range routers.API.RestartChan {
 			p.StopHTTP()
 			p.StopRTSP()
+			if p.EnableHttpStream {
+				p.StopHttpStream()
+			}
 			utils.ReloadConf()
 			p.StartRTSP()
 			p.StartHTTP()
+			if p.EnableHttpStream {
+				p.StartHttpStream()
+			}
 		}
 	}()
 
 	go func() {
 		log.Printf("demon pull streams")
+		rtspServer := rtsp.GetServer()
 		for {
 			var streams []models.Stream
 			db.SQLite.Find(&streams)
@@ -136,14 +182,14 @@ func (p *program) Start(s service.Service) (err error) {
 			}
 			for i := len(streams) - 1; i > -1; i-- {
 				v := streams[i]
-				if rtsp.GetServer().GetPusher(v.CustomPath) != nil {
+				if rtspServer.GetPusher(v.CustomPath) != nil {
 					continue
 				}
 				agent := fmt.Sprintf("EasyDarwinGo/%s", routers.BuildVersion)
 				if routers.BuildDateTime != "" {
 					agent = fmt.Sprintf("%s(%s)", agent, routers.BuildDateTime)
 				}
-				client, err := rtsp.NewRTSPClient(rtsp.GetServer(), v.URL, int64(v.HeartbeatInterval)*1000, agent)
+				client, err := rtsp.NewRTSPClient(rtspServer, v.URL, int64(v.HeartbeatInterval)*1000, agent)
 				if err != nil {
 					continue
 				}
@@ -155,7 +201,7 @@ func (p *program) Start(s service.Service) (err error) {
 					continue
 				}
 				pusher := rtsp.NewClientPusher(client)
-				rtsp.GetServer().AddPusher(pusher)
+				rtspServer.AddPusher(pusher)
 				//streams = streams[0:i]
 				//streams = append(streams[:i], streams[i+1:]...)
 			}
@@ -170,6 +216,7 @@ func (p *program) Stop(s service.Service) (err error) {
 	defer utils.CloseLogWriter()
 	p.StopHTTP()
 	p.StopRTSP()
+	p.StopHttpStream()
 	models.Close()
 	return
 }
@@ -198,9 +245,11 @@ func main() {
 	httpPort := utils.Conf().Section("http").Key("port").MustInt(10008)
 	rtspServer := rtsp.GetServer()
 	p := &program{
-		httpPort:   httpPort,
-		rtspPort:   rtspServer.TCPPort,
-		rtspServer: rtspServer,
+		httpPort:         httpPort,
+		EnableHttpStream: rtspServer.EnableHttpStream,
+		httpStreamPort:   rtspServer.HttpMediaStreamPort,
+		rtspPort:         rtspServer.TCPPort,
+		rtspServer:       rtspServer,
 	}
 	s, err := service.New(p, svcConfig)
 	if err != nil {

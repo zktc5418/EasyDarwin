@@ -30,8 +30,8 @@ type RTPPack struct {
 type SessionType int
 
 const (
-	SESSION_TYPE_PUSHER SessionType = iota
-	SESSEION_TYPE_PLAYER
+	SESSION_TYPE_PUSHER  SessionType = 1
+	SESSEION_TYPE_PLAYER SessionType = 2
 )
 
 func (st SessionType) String() string {
@@ -382,7 +382,19 @@ func (session *Session) handleRequest(req *Request) {
 			authLine := req.Header["Authorization"]
 			authFailed := true
 			if authLine != "" {
-				info, err := DecodeAuthorizationInfo(authLine, session.nonce, req.Method)
+				sessionType := session.Type
+				if sessionType == 0 {
+					if req.Method == "ANNOUNCE" {
+						sessionType = SESSION_TYPE_PUSHER
+					} else if req.Method == "DESCRIBE" {
+						sessionType = SESSEION_TYPE_PLAYER
+					} else {
+						res.StatusCode = 403
+						res.Status = "Method Error"
+						return
+					}
+				}
+				info, err := DecodeAuthorizationInfo(authLine, session.nonce, req.Method, sessionType)
 				if err != nil {
 					logger.Printf("%v", err)
 				} else if session.localAuthorizationEnable {
@@ -402,9 +414,13 @@ func (session *Session) handleRequest(req *Request) {
 			if authFailed {
 				res.StatusCode = 401
 				res.Status = "Unauthorized"
-				nonce := fmt.Sprintf("%x", md5.Sum([]byte(shortid.MustGenerate())))
-				session.nonce = nonce
-				res.Header["WWW-Authenticate"] = fmt.Sprintf(`Digest realm="EasyDarwin", nonce="%s", algorithm="MD5"`, nonce)
+				if session.Server.authorizationType == "Basic" {
+					res.Header["WWW-Authenticate"] = `Basic realm="EasyDarwin"`
+				} else {
+					nonce := fmt.Sprintf("%x", md5.Sum([]byte(shortid.MustGenerate())))
+					session.nonce = nonce
+					res.Header["WWW-Authenticate"] = fmt.Sprintf(`Digest realm="EasyDarwin", nonce="%s", algorithm="MD5"`, nonce)
+				}
 				return
 			}
 		}

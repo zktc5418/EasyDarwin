@@ -22,7 +22,8 @@ type Pusher struct {
 	UDPServer         *UDPServer
 	spsppsInSTAPaPack bool
 	//cond              *sync.Cond
-	queue chan *RTPPack
+	queue           chan *RTPPack
+	udpHttpListener *Mp3UdpDataListener
 }
 
 func (pusher *Pusher) String() string {
@@ -518,6 +519,9 @@ func (pusher *Pusher) Stop() {
 	if pusher.MulticastClient != nil {
 		pusher.MulticastClient.Stop()
 		return
+	}
+	if pusher.udpHttpListener != nil {
+		pusher.udpHttpListener.Stop()
 	}
 	pusher.RTSPClient.Stop()
 }

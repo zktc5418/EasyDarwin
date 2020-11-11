@@ -39,6 +39,7 @@ type AuthorizationInfo struct {
 	Uri           string            `json:"uri"`
 	Response      string            `json:"response"`
 	RequestMethod string            `json:"requestMethod"`
+	SessionType   string            `json:"sessionType"`
 }
 
 type AuthError struct {
@@ -46,11 +47,12 @@ type AuthError struct {
 	err      string
 }
 
-func DecodeAuthorizationInfo(authLine string, serverNonce string, requestMethod string) (authInfo *AuthorizationInfo, err error) {
+func DecodeAuthorizationInfo(authLine string, serverNonce string, requestMethod string, sessionType SessionType) (authInfo *AuthorizationInfo, err error) {
 	server := GetServer()
 	authInfo = &AuthorizationInfo{
 		AuthType:      server.authorizationType,
 		RequestMethod: requestMethod,
+		SessionType:   sessionType.String(),
 	}
 	authError := &AuthError{
 		authLine: authLine,

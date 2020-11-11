@@ -41,6 +41,8 @@ type Server struct {
 	remoteHttpAuthorizationEnable bool
 	remoteHttpAuthorizationUrl    string
 	authorizationType             AuthorizationType
+	EnableHttpStream              bool
+	HttpMediaStreamPort           uint16
 	closeOld                      bool
 	svcDiscoverMultiAddr          string
 	svcDiscoverMultiPort          uint16
@@ -210,6 +212,8 @@ var Instance *Server = func() (server *Server) {
 		enableMulticast:               rtspFile.Key("enable_multicast").MustBool(false),
 		multicastAddr:                 rtspFile.Key("multicast_svc_discover_addr").MustString("232.2.2.2:8760"),
 		multicastBindInf:              multicastBindInf,
+		EnableHttpStream:              rtspFile.Key("enable_http_stream").MustBool(false),
+		HttpMediaStreamPort:           uint16(rtspFile.Key("http_media_stream_port").MustUint(8808)),
 		allPushCmd:                    allCmds,
 		pushCmdDirMap:                 pushCmdMap,
 		otherPushCmd:                  otherCmds,
@@ -396,7 +400,7 @@ func (server *Server) Start() (err error) {
 						logger.Printf("removePusherChan closed")
 					}
 				}
-				if pusher.MulticastClient == nil {
+				if pusher != nil && pusher.MulticastClient == nil {
 					if bags := pusher2CmdMap[pusher]; bags != nil {
 						for _, bagRaw := range bags.Values() {
 							bag := bagRaw.(*CmdRepeatBag)
@@ -467,6 +471,12 @@ func (server *Server) AddPusher(pusher *Pusher) bool {
 	if added {
 		go pusher.Start()
 		server.addPusherCh <- pusher
+		if GetServer().EnableHttpStream {
+			pusher.udpHttpListener = NewMp3UdpDataListener(pusher.Path(), pusher.ID(), pusher.Logger())
+			if err := pusher.udpHttpListener.Start(); err != nil {
+				logger.Printf("start mp3 udp listen error:%v", err)
+			}
+		}
 	}
 	return added
 }
