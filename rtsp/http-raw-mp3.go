@@ -198,7 +198,8 @@ func (listener *Mp3UdpDataListener) Start() (err error) {
 				listener.logger.Printf("receive mp3 udp data path{%s} error:%v", listener.rtspPath, readErr)
 				continue
 			}
-			audioData := buf[0:n]
+			audioData := make([]byte, n) //buf[0:n]
+			copy(audioData, buf)
 			listener.audioDataChan <- &audioData
 		}
 	}()

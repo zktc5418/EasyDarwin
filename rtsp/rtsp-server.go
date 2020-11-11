@@ -213,7 +213,7 @@ var Instance *Server = func() (server *Server) {
 		multicastAddr:                 rtspFile.Key("multicast_svc_discover_addr").MustString("232.2.2.2:8760"),
 		multicastBindInf:              multicastBindInf,
 		EnableHttpStream:              rtspFile.Key("enable_http_stream").MustBool(false),
-		HttpMediaStreamPort:           uint16(rtspFile.Key("http_media_stream_port").MustUint(8808)),
+		HttpMediaStreamPort:           uint16(rtspFile.Key("http_media_stream_port").MustUint(8088)),
 		allPushCmd:                    allCmds,
 		pushCmdDirMap:                 pushCmdMap,
 		otherPushCmd:                  otherCmds,
