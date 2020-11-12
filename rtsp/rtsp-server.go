@@ -95,7 +95,7 @@ var Instance *Server = func() (server *Server) {
 	}
 	networkBuffer := rtspFile.Key("network_buffer").MustInt(1048576)
 	localRecord := rtspFile.Key("save_stream_to_local").MustUint(0)
-	ffmpeg := rtspFile.Key("ffmpeg_path").MustString("")
+	ffmpeg := rtspFile.Key("ffmpeg_path").MustString("ffmpeg")
 	m3u8_dir_path := rtspFile.Key("m3u8_dir_path").MustString("")
 	ts_duration_second := rtspFile.Key("ts_duration_second").MustInt(6)
 	infName := rtspFile.Key("multicast_svc_bind_inf").MustString("")
@@ -211,12 +211,12 @@ var Instance *Server = func() (server *Server) {
 		closeOld:                      rtspFile.Key("close_old").MustBool(false),
 		svcDiscoverMultiAddr:          rtspFile.Key("svc_discover_multiaddr").MustString("239.12.12.12"),
 		svcDiscoverMultiPort:          uint16(rtspFile.Key("svc_discover_multiport").MustUint(1212)),
-		enableMulticast:               rtspFile.Key("enable_multicast").MustBool(false),
+		enableMulticast:               rtspFile.Key("enable_multicast").MustBool(true),
 		multicastAddr:                 rtspFile.Key("multicast_svc_discover_addr").MustString("232.2.2.2:8760"),
 		multicastBindInf:              multicastBindInf,
-		EnableAudioHttpStream:         rtspFile.Key("enable_http_audio_stream").MustBool(false),
+		EnableAudioHttpStream:         rtspFile.Key("enable_http_audio_stream").MustBool(true),
 		HttpAudioStreamPort:           uint16(rtspFile.Key("http_audio_stream_port").MustUint(8088)),
-		EnableVideoHttpStream:         rtspFile.Key("enable_http_video_stream").MustBool(false),
+		EnableVideoHttpStream:         rtspFile.Key("enable_http_video_stream").MustBool(true),
 		HttpVideoStreamPort:           uint16(rtspFile.Key("http_video_stream_port").MustUint(8099)),
 		allPushCmd:                    allCmds,
 		pushCmdDirMap:                 pushCmdMap,

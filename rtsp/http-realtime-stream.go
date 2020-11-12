@@ -74,7 +74,7 @@ func (info *HttpPlayStreamInfo) ToRtspWebHookInfo(actionType WebHookActionType) 
 func newMediaStreamLocalListener(pusher *Pusher) *MediaUdpDataListener {
 	return &MediaUdpDataListener{
 		closed:        false,
-		mediaDataChan: make(chan *[]byte, 10),
+		mediaDataChan: make(chan *[]byte, 128),
 		rtspPath:      pusher.Path(),
 		logger:        pusher.Logger(),
 		pullerMap:     make(map[string]*HttpPlayStreamInfo),

@@ -12,9 +12,9 @@ import (
 	"time"
 )
 
-const FFmpegMp4ConvertLocalCmd string = "ffmpeg -rtsp_transport tcp -i rtsp://127.0.0.1:%d%s -vn -nostdin -c:a aac -c:v libx264 -threads 8 -cpu-used 8 -quality realtime -qmax 51 -bufsize 11480k -movflags isml+frag_keyframe+negative_cts_offsets+omit_tfhd_offset -f mp4 -v error udp://127.0.0.1:%d"
+const FFmpegMp4ConvertLocalCmd string = "ffmpeg -rtsp_transport tcp -i rtsp://127.0.0.1:%d%s -nostdin -c:a aac -c:v libx264 -threads 4 -cpu-used 4 -quality realtime -qmax 51 -bufsize 11480k -movflags isml+frag_keyframe+negative_cts_offsets+omit_tfhd_offset -f mp4 -v error udp://127.0.0.1:%d"
 
-const FFmpegMp4ConvertMulticastCmd string = "ffmpeg -rtsp_transport tcp -i rtsp://127.0.0.1:%d%s -vn -nostdin -c:a aac -c:v libx264 -threads 8 -cpu-used 8 -quality realtime -qmax 51 -bufsize 11480k -movflags isml+frag_keyframe+negative_cts_offsets+omit_tfhd_offset -f mp4 -v error udp://%s:%d?localaddr=%s"
+const FFmpegMp4ConvertMulticastCmd string = "ffmpeg -rtsp_transport tcp -i rtsp://127.0.0.1:%d%s -nostdin -c:a aac -c:v libx264 -threads 4 -cpu-used 4 -quality realtime -qmax 51 -bufsize 11480k -movflags isml+frag_keyframe+negative_cts_offsets+omit_tfhd_offset -f mp4 -v error udp://%s:%d?localaddr=%s"
 
 var (
 	Mp4StreamRouter *gin.Engine
