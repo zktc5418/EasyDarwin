@@ -28,6 +28,11 @@ type MulticastCommunicateInfo struct {
 	Path            string `json:"path"`
 	SourceSessionId string `json:"id"`
 	SourceUrl       string `json:"url"`
+
+	AudioStreamPort       uint16 `json:"audioStreamPort"`
+	AudioMulticastAddress string `json:"audioMulticastAddress"`
+	VideoStreamPort       uint16 `json:"videoStreamPort"`
+	VideoMulticastAddress string `json:"videoMulticastAddress"`
 }
 
 var existMulticastAddresses = hashset.New()

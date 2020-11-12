@@ -41,8 +41,10 @@ type Server struct {
 	remoteHttpAuthorizationEnable bool
 	remoteHttpAuthorizationUrl    string
 	authorizationType             AuthorizationType
-	EnableHttpStream              bool
-	HttpMediaStreamPort           uint16
+	EnableAudioHttpStream         bool
+	HttpAudioStreamPort           uint16
+	EnableVideoHttpStream         bool
+	HttpVideoStreamPort           uint16
 	closeOld                      bool
 	svcDiscoverMultiAddr          string
 	svcDiscoverMultiPort          uint16
@@ -212,8 +214,10 @@ var Instance *Server = func() (server *Server) {
 		enableMulticast:               rtspFile.Key("enable_multicast").MustBool(false),
 		multicastAddr:                 rtspFile.Key("multicast_svc_discover_addr").MustString("232.2.2.2:8760"),
 		multicastBindInf:              multicastBindInf,
-		EnableHttpStream:              rtspFile.Key("enable_http_stream").MustBool(false),
-		HttpMediaStreamPort:           uint16(rtspFile.Key("http_media_stream_port").MustUint(8088)),
+		EnableAudioHttpStream:         rtspFile.Key("enable_http_audio_stream").MustBool(false),
+		HttpAudioStreamPort:           uint16(rtspFile.Key("http_audio_stream_port").MustUint(8088)),
+		EnableVideoHttpStream:         rtspFile.Key("enable_http_video_stream").MustBool(false),
+		HttpVideoStreamPort:           uint16(rtspFile.Key("http_video_stream_port").MustUint(8099)),
 		allPushCmd:                    allCmds,
 		pushCmdDirMap:                 pushCmdMap,
 		otherPushCmd:                  otherCmds,
@@ -471,10 +475,16 @@ func (server *Server) AddPusher(pusher *Pusher) bool {
 	if added {
 		go pusher.Start()
 		server.addPusherCh <- pusher
-		if GetServer().EnableHttpStream {
-			pusher.udpHttpListener = NewMp3UdpDataListener(pusher.Path(), pusher.ID(), pusher.Logger())
-			if err := pusher.udpHttpListener.Start(); err != nil {
+		if GetServer().EnableAudioHttpStream {
+			pusher.udpHttpAudioStreamListener = NewMp3UdpDataListener(pusher)
+			if err := pusher.udpHttpAudioStreamListener.Start(); err != nil {
 				logger.Printf("start mp3 udp listen error:%v", err)
+			}
+		}
+		if GetServer().EnableVideoHttpStream {
+			pusher.udpHttpVideoStreamListener = NewMp4UdpDataListener(pusher)
+			if err := pusher.udpHttpVideoStreamListener.Start(); err != nil {
+				logger.Printf("start mp4 udp listen error:%v", err)
 			}
 		}
 	}

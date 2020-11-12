@@ -125,7 +125,7 @@ type Session struct {
 	aRTPControlChannel int
 	vRTPChannel        int
 	vRTPControlChannel int
-
+	//不为nil表示当前推流pusher
 	multicastInfo       *MulticastCommunicateInfo
 	multicastLastBoard  time.Time
 	multicastBoardTimes int

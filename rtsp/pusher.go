@@ -12,6 +12,7 @@ const MAX_GOP_CACHE_LEN uint = 256
 type Pusher struct {
 	*Session
 	*RTSPClient
+	//不为null则表示是组播推流
 	*MulticastClient
 	players        map[string]*Player //SessionID <-> Player
 	playersLock    sync.RWMutex
@@ -22,8 +23,9 @@ type Pusher struct {
 	UDPServer         *UDPServer
 	spsppsInSTAPaPack bool
 	//cond              *sync.Cond
-	queue           chan *RTPPack
-	udpHttpListener *Mp3UdpDataListener
+	queue                      chan *RTPPack
+	udpHttpAudioStreamListener *AudioUdpDataListener
+	udpHttpVideoStreamListener *VideoUdpDataListener
 }
 
 func (pusher *Pusher) String() string {
@@ -371,6 +373,12 @@ func (pusher *Pusher) bindSession(session *Session) {
 			session.multicastInfo.VideoRtpMultiAddress, session.multicastInfo.VideoRtpPort = RandomMulticastAddress()
 			session.multicastInfo.CtlVideoRtpMultiAddress, session.multicastInfo.CtlVideoRtpPort = RandomMulticastAddress()
 		}
+		if server.EnableAudioHttpStream {
+			multicastInfo.AudioMulticastAddress, multicastInfo.AudioStreamPort = RandomMulticastAddress()
+		}
+		if server.EnableVideoHttpStream {
+			multicastInfo.VideoMulticastAddress, multicastInfo.VideoStreamPort = RandomMulticastAddress()
+		}
 
 		session.RTPHandles = append(session.RTPHandles, func(pack *RTPPack) {
 			//发送rtp组播包
@@ -520,8 +528,11 @@ func (pusher *Pusher) Stop() {
 		pusher.MulticastClient.Stop()
 		return
 	}
-	if pusher.udpHttpListener != nil {
-		pusher.udpHttpListener.Stop()
+	if pusher.udpHttpAudioStreamListener != nil {
+		pusher.udpHttpAudioStreamListener.Stop()
+	}
+	if pusher.udpHttpVideoStreamListener != nil {
+		pusher.udpHttpVideoStreamListener.Stop()
 	}
 	pusher.RTSPClient.Stop()
 }

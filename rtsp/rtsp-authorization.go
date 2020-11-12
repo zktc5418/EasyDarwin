@@ -128,12 +128,18 @@ func (authInfo *AuthorizationInfo) CheckAuthLocal() error {
 	if err != nil {
 		return fmt.Errorf("CheckAuth error : user not exists")
 	}
-	//response = MD5(MD5(username:realm:password):nonce:MD5(method:uri))
-	md5UserRealmPwd := fmt.Sprintf("%x", md5.Sum([]byte(fmt.Sprintf("%s:%s:%s", authInfo.Username, authInfo.Realm, user.Password))))
-	md5MethodURL := fmt.Sprintf("%x", md5.Sum([]byte(fmt.Sprintf("%s:%s", authInfo.RequestMethod, authInfo.Uri))))
-	myResponse := fmt.Sprintf("%x", md5.Sum([]byte(fmt.Sprintf("%s:%s:%s", md5UserRealmPwd, authInfo.Nonce, md5MethodURL))))
-	if myResponse != authInfo.Response {
-		return fmt.Errorf("CheckAuth error : response not equal")
+	if authInfo.AuthType == BASIC {
+		if authInfo.Password != user.Password {
+			return fmt.Errorf("CheckAuth error : password not equal")
+		}
+	} else {
+		//response = MD5(MD5(username:realm:password):nonce:MD5(method:uri))
+		md5UserRealmPwd := fmt.Sprintf("%x", md5.Sum([]byte(fmt.Sprintf("%s:%s:%s", authInfo.Username, authInfo.Realm, user.Password))))
+		md5MethodURL := fmt.Sprintf("%x", md5.Sum([]byte(fmt.Sprintf("%s:%s", authInfo.RequestMethod, authInfo.Uri))))
+		myResponse := fmt.Sprintf("%x", md5.Sum([]byte(fmt.Sprintf("%s:%s:%s", md5UserRealmPwd, authInfo.Nonce, md5MethodURL))))
+		if myResponse != authInfo.Response {
+			return fmt.Errorf("CheckAuth error : response not equal")
+		}
 	}
 	return nil
 }
