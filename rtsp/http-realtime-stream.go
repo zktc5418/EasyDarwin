@@ -75,7 +75,7 @@ func newMediaStreamLocalListener(pusher *Pusher) *MediaUdpDataListener {
 		closed:        false,
 		mediaDataChan: make(chan *[]byte, 10),
 		rtspPath:      pusher.Path(),
-		logger:        pusher.logger,
+		logger:        pusher.Logger(),
 		pullerMap:     make(map[string]*HttpPlayStreamInfo),
 		sessionId:     pusher.ID(),
 		pusher:        pusher,
