@@ -13,6 +13,7 @@ import (
 	"net"
 	"net/http"
 	"regexp"
+	"strings"
 	"time"
 )
 
@@ -147,6 +148,28 @@ func (listener *MediaUdpDataListener) doMediaStreamMulticastListen(port uint16, 
 		}
 	}()
 	return conn, nil
+}
+
+func getIpv4(addrs []net.Addr) string {
+	for _, addr := range addrs {
+		s := addr.String()
+		if strings.HasPrefix(s, "::1/") || strings.HasPrefix(s, "0:0:0:0:0:0:0:1/") || strings.Contains(s, "127.0.0.1") {
+			continue
+		}
+		switch v := addr.(type) {
+		case *net.IPAddr:
+			if ip := v.IP.To4().String(); strings.Contains(ip, ".") {
+				return ip
+			}
+		case *net.IPNet:
+			if ip := v.IP.To4().String(); strings.Contains(ip, ".") {
+				return ip
+			}
+		default:
+			continue
+		}
+	}
+	return ""
 }
 
 func Errors() gin.HandlerFunc {

@@ -32,7 +32,9 @@ type AudioStreamGinHandler struct {
 
 func InitMp3Stream() (err error) {
 	Mp3StreamRouter = gin.New()
-	mp3StreamGinHandler = &AudioStreamGinHandler{}
+	mp3StreamGinHandler = &AudioStreamGinHandler{
+		MediaStreamGinHandler: &MediaStreamGinHandler{},
+	}
 	pprof.Register(Mp3StreamRouter)
 	Mp3StreamRouter.Use(gin.Recovery())
 	Mp3StreamRouter.Use(Errors())
@@ -103,7 +105,7 @@ func (listener *AudioUdpDataListener) Start() (err error) {
 			}
 		}
 		if multicastInfo == nil && pusher.MulticastClient != nil {
-			multicastInfo = pusher.RTSPClient.multicastInfo
+			multicastInfo = pusher.MulticastClient.multiInfo
 		}
 		if multicastInfo == nil {
 			return fmt.Errorf("invalidation rtsp pusher, path:%s", listener.rtspPath)
@@ -152,7 +154,11 @@ func (listener *AudioUdpDataListener) Start() (err error) {
 			if len(addrs) == 0 {
 				return fmt.Errorf("invalidation mulicast interface:[%s]", GetServer().multicastBindInf.Name)
 			}
-			cmd = fmt.Sprintf(FFmpegMp3ConvertMulticastCmd, server.TCPPort, listener.rtspPath, multicastInfo.AudioMulticastAddress, multicastInfo.AudioStreamPort, addrs[0].String())
+			if addr := getIpv4(addrs); addr != "" {
+				cmd = fmt.Sprintf(FFmpegMp3ConvertMulticastCmd, server.TCPPort, listener.rtspPath, multicastInfo.AudioMulticastAddress, multicastInfo.AudioStreamPort, addr)
+			} else {
+				return fmt.Errorf("invalidation mulicast interface:[%s]", GetServer().multicastBindInf.Name)
+			}
 		}
 	} else {
 		//没有启用组播，发送到本地

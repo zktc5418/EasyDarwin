@@ -75,18 +75,18 @@ func (p *program) StartHttpAudioStream() {
 		IdleTimeout:       0,
 	}
 	link := fmt.Sprintf("http://%s:%d", utils.LocalIP(), p.httpAudioStreamPort)
-	log.Println("http stream server start -->", link)
+	log.Println("http audio stream server start -->", link)
 	go func() {
 		if err := p.httpAudioStreamServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Println("start http stream server error", err)
+			log.Println("start audio http stream server error", err)
 		}
-		log.Println("http stream server end")
+		log.Println("http audio stream server end")
 	}()
 }
 
 func (p *program) StopHttpAudioStream() (err error) {
 	if p.httpAudioStreamServer == nil {
-		err = fmt.Errorf("HTTP Stream Server Not Found")
+		err = fmt.Errorf("HTTP audio Stream Server Not Found")
 		return
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -105,18 +105,18 @@ func (p *program) StartHttpVideoStream() {
 		IdleTimeout:       0,
 	}
 	link := fmt.Sprintf("http://%s:%d", utils.LocalIP(), p.httpVideoStreamPort)
-	log.Println("http stream server start -->", link)
+	log.Println("http video stream server start -->", link)
 	go func() {
 		if err := p.httpVideoStreamServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Println("start http stream server error", err)
+			log.Println("start video http stream server error", err)
 		}
-		log.Println("http stream server end")
+		log.Println("http video stream server end")
 	}()
 }
 
 func (p *program) StopHttpVideoStream() (err error) {
 	if p.httpVideoStreamServer == nil {
-		err = fmt.Errorf("HTTP Stream Server Not Found")
+		err = fmt.Errorf("HTTP video Stream Server Not Found")
 		return
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)

@@ -32,7 +32,9 @@ type VideoStreamGinHandler struct {
 
 func InitMp4Stream() (err error) {
 	Mp4StreamRouter = gin.New()
-	mp4StreamGinHandler = &VideoStreamGinHandler{}
+	mp4StreamGinHandler = &VideoStreamGinHandler{
+		MediaStreamGinHandler: &MediaStreamGinHandler{},
+	}
 	pprof.Register(Mp4StreamRouter)
 	Mp4StreamRouter.Use(gin.Recovery())
 	Mp4StreamRouter.Use(Errors())
@@ -62,9 +64,9 @@ func (handler VideoStreamGinHandler) ProcessMp4Stream(c *gin.Context) {
 	defer func() {
 		streamInfo.ToRtspWebHookInfo(ON_STOP).ExecuteWebHookNotify()
 		streamInfo.overed = true
-		delete(server.pushers[streamInfo.rtspPath].udpHttpAudioStreamListener.pullerMap, streamInfo.id)
+		delete(server.pushers[streamInfo.rtspPath].udpHttpVideoStreamListener.pullerMap, streamInfo.id)
 	}()
-	server.pushers[streamInfo.rtspPath].udpHttpAudioStreamListener.pullerMap[streamInfo.id] = streamInfo
+	server.pushers[streamInfo.rtspPath].udpHttpVideoStreamListener.pullerMap[streamInfo.id] = streamInfo
 	c.Stream(func(w io.Writer) bool {
 		if !streamInfo.overed {
 			data := <-streamInfo.mediaData
@@ -103,7 +105,7 @@ func (listener *VideoUdpDataListener) Start() (err error) {
 			}
 		}
 		if multicastInfo == nil && pusher.MulticastClient != nil {
-			multicastInfo = pusher.RTSPClient.multicastInfo
+			multicastInfo = pusher.MulticastClient.multiInfo
 		}
 		if multicastInfo == nil {
 			return fmt.Errorf("invalidation rtsp pusher, path:%s", listener.rtspPath)
@@ -152,7 +154,11 @@ func (listener *VideoUdpDataListener) Start() (err error) {
 			if len(addrs) == 0 {
 				return fmt.Errorf("invalidation mulicast interface:[%s]", GetServer().multicastBindInf.Name)
 			}
-			cmd = fmt.Sprintf(FFmpegMp4ConvertMulticastCmd, server.TCPPort, listener.rtspPath, multicastInfo.VideoMulticastAddress, multicastInfo.VideoStreamPort, addrs[0].String())
+			if addr := getIpv4(addrs); addr != "" {
+				cmd = fmt.Sprintf(FFmpegMp4ConvertMulticastCmd, server.TCPPort, listener.rtspPath, multicastInfo.VideoMulticastAddress, multicastInfo.VideoStreamPort, addr)
+			} else {
+				return fmt.Errorf("invalidation mulicast interface:[%s]", GetServer().multicastBindInf.Name)
+			}
 		}
 	} else {
 		//没有启用组播，发送到本地
