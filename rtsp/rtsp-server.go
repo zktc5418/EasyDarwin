@@ -217,7 +217,7 @@ var Instance *Server = func() (server *Server) {
 		multicastBindInf:              multicastBindInf,
 		EnableAudioHttpStream:         rtspFile.Key("enable_http_audio_stream").MustBool(true),
 		HttpAudioStreamPort:           uint16(rtspFile.Key("http_audio_stream_port").MustUint(8088)),
-		EnableVideoHttpStream:         rtspFile.Key("enable_http_video_stream").MustBool(true),
+		EnableVideoHttpStream:         rtspFile.Key("enable_http_video_stream").MustBool(false),
 		HttpVideoStreamPort:           uint16(rtspFile.Key("http_video_stream_port").MustUint(8099)),
 		NginxRtmpHlsMapDir:            rtspFile.Key("nginx_rtmp_hls_dir_map").MustString("record"),
 		allPushCmd:                    allCmds,
