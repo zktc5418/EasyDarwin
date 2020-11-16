@@ -4,6 +4,7 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"strings"
 	"time"
 )
 
@@ -34,6 +35,8 @@ func NewCmdRepeatBag(cmdName string, args []string, MaxRepeatTime uint8, logger 
 }
 
 func (bag CmdRepeatBag) Run(overErrorTimeCallBack func()) {
+
+	bag.logger.Printf("excute ffmpeg command:%s", strings.Join(append([]string{bag.cmdName}, bag.args...), " "))
 	bag.Cmd = exec.Command(bag.cmdName, bag.args...)
 	bag.Cmd.Stdout = os.Stdout
 	bag.Cmd.Stderr = os.Stderr

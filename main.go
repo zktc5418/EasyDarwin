@@ -100,7 +100,7 @@ func (p *program) StopHttpAudioStream() (err error) {
 func (p *program) StartHttpVideoStream() {
 	p.httpVideoStreamServer = &http.Server{
 		Addr:              fmt.Sprintf(":%d", p.httpVideoStreamPort),
-		Handler:           rtsp.Mp4StreamRouter,
+		Handler:           rtsp.HlsStreamRouter,
 		ReadHeaderTimeout: 5 * time.Second,
 		IdleTimeout:       0,
 	}
@@ -184,7 +184,7 @@ func (p *program) Start(s service.Service) (err error) {
 		p.StartHttpAudioStream()
 	}
 	if p.EnableHttpVideoStream {
-		err = rtsp.InitMp4Stream()
+		err = rtsp.InitHlsStream()
 		if err != nil {
 			return
 		}

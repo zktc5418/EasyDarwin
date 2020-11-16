@@ -36,7 +36,7 @@ require (
 	github.com/modern-go/reflect2 v1.0.1 // indirect
 	github.com/onsi/ginkgo v1.12.0 // indirect
 	github.com/onsi/gomega v1.10.0 // indirect
-	github.com/otherplace/mp4 v0.0.0-20200730070628-b6fbf86c9c4c // indirect
+	//github.com/otherplace/mp4 v0.0.0-20200730070628-b6fbf86c9c4c
 	github.com/pixelbender/go-sdp v1.0.0
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/shirou/gopsutil v3.20.10+incompatible

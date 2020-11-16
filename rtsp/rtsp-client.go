@@ -516,12 +516,12 @@ func (client *RTSPClient) Start(timeout time.Duration) (err error) {
 		client.multicastInfo.VideoRtpMultiAddress, client.multicastInfo.VideoRtpPort = RandomMulticastAddress()
 		client.multicastInfo.CtlVideoRtpMultiAddress, client.multicastInfo.CtlVideoRtpPort = RandomMulticastAddress()
 	}
-	if client.Server.EnableAudioHttpStream {
-		client.multicastInfo.AudioMulticastAddress, client.multicastInfo.AudioStreamPort = RandomMulticastAddress()
-	}
-	if client.Server.EnableVideoHttpStream {
-		client.multicastInfo.VideoMulticastAddress, client.multicastInfo.VideoStreamPort = RandomMulticastAddress()
-	}
+	//if client.Server.EnableAudioHttpStream {
+	//	client.multicastInfo.AudioMulticastAddress, client.multicastInfo.AudioStreamPort = RandomMulticastAddress()
+	//}
+	//if client.Server.EnableVideoHttpStream {
+	//	client.multicastInfo.VideoMulticastAddress, client.multicastInfo.VideoStreamPort = RandomMulticastAddress()
+	//}
 	go client.startStream()
 	return
 }

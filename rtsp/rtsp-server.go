@@ -45,6 +45,7 @@ type Server struct {
 	HttpAudioStreamPort           uint16
 	EnableVideoHttpStream         bool
 	HttpVideoStreamPort           uint16
+	NginxRtmpHlsMapDir            string
 	closeOld                      bool
 	svcDiscoverMultiAddr          string
 	svcDiscoverMultiPort          uint16
@@ -218,6 +219,7 @@ var Instance *Server = func() (server *Server) {
 		HttpAudioStreamPort:           uint16(rtspFile.Key("http_audio_stream_port").MustUint(8088)),
 		EnableVideoHttpStream:         rtspFile.Key("enable_http_video_stream").MustBool(true),
 		HttpVideoStreamPort:           uint16(rtspFile.Key("http_video_stream_port").MustUint(8099)),
+		NginxRtmpHlsMapDir:            rtspFile.Key("nginx_rtmp_hls_dir_map").MustString("record"),
 		allPushCmd:                    allCmds,
 		pushCmdDirMap:                 pushCmdMap,
 		otherPushCmd:                  otherCmds,
@@ -481,12 +483,12 @@ func (server *Server) AddPusher(pusher *Pusher) bool {
 				logger.Printf("start mp3 udp listen error:%v", err)
 			}
 		}
-		if GetServer().EnableVideoHttpStream {
-			pusher.udpHttpVideoStreamListener = NewMp4UdpDataListener(pusher)
-			if err := pusher.udpHttpVideoStreamListener.Start(); err != nil {
-				logger.Printf("start mp4 udp listen error:%v", err)
-			}
-		}
+		//if GetServer().EnableVideoHttpStream {
+		//	pusher.udpHttpVideoStreamListener = NewMp4UdpDataListener(pusher)
+		//	if err := pusher.udpHttpVideoStreamListener.Start(); err != nil {
+		//		logger.Printf("start mp4 udp listen error:%v", err)
+		//	}
+		//}
 	}
 	return added
 }

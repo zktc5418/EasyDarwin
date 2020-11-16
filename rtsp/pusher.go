@@ -25,7 +25,7 @@ type Pusher struct {
 	//cond              *sync.Cond
 	queue                      chan *RTPPack
 	udpHttpAudioStreamListener *AudioUdpDataListener
-	udpHttpVideoStreamListener *VideoUdpDataListener
+	//udpHttpVideoStreamListener *VideoUdpDataListener
 }
 
 func (pusher *Pusher) String() string {
@@ -373,12 +373,12 @@ func (pusher *Pusher) bindSession(session *Session) {
 			session.multicastInfo.VideoRtpMultiAddress, session.multicastInfo.VideoRtpPort = RandomMulticastAddress()
 			session.multicastInfo.CtlVideoRtpMultiAddress, session.multicastInfo.CtlVideoRtpPort = RandomMulticastAddress()
 		}
-		if server.EnableAudioHttpStream {
-			multicastInfo.AudioMulticastAddress, multicastInfo.AudioStreamPort = RandomMulticastAddress()
-		}
-		if server.EnableVideoHttpStream {
-			multicastInfo.VideoMulticastAddress, multicastInfo.VideoStreamPort = RandomMulticastAddress()
-		}
+		//if server.EnableAudioHttpStream {
+		//	multicastInfo.AudioMulticastAddress, multicastInfo.AudioStreamPort = RandomMulticastAddress()
+		//}
+		//if server.EnableVideoHttpStream {
+		//	multicastInfo.VideoMulticastAddress, multicastInfo.VideoStreamPort = RandomMulticastAddress()
+		//}
 
 		session.RTPHandles = append(session.RTPHandles, func(pack *RTPPack) {
 			//发送rtp组播包
@@ -531,9 +531,9 @@ func (pusher *Pusher) Stop() {
 	if pusher.udpHttpAudioStreamListener != nil {
 		pusher.udpHttpAudioStreamListener.Stop()
 	}
-	if pusher.udpHttpVideoStreamListener != nil {
-		pusher.udpHttpVideoStreamListener.Stop()
-	}
+	//if pusher.udpHttpVideoStreamListener != nil {
+	//	pusher.udpHttpVideoStreamListener.Stop()
+	//}
 	pusher.RTSPClient.Stop()
 }
 
