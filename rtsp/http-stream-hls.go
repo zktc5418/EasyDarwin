@@ -47,7 +47,7 @@ func InitHlsStream() (err error) {
 	}))
 	//id := shortid.MustGenerate()
 	HlsStreamRouter.Use(hlsStreamGinHandler.BeforeProcessMediaStream)
-	HlsStreamRouter.Static("/", GetServer().NginxRtmpHlsMapDir)
+	HlsStreamRouter.Static("/hls", GetServer().NginxRtmpHlsMapDir)
 	return nil
 }
 
