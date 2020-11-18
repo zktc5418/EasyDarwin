@@ -373,9 +373,9 @@ func (pusher *Pusher) bindSession(session *Session) {
 			session.multicastInfo.VideoRtpMultiAddress, session.multicastInfo.VideoRtpPort = RandomMulticastAddress()
 			session.multicastInfo.CtlVideoRtpMultiAddress, session.multicastInfo.CtlVideoRtpPort = RandomMulticastAddress()
 		}
-		//if server.EnableAudioHttpStream {
-		//	multicastInfo.AudioMulticastAddress, multicastInfo.AudioStreamPort = RandomMulticastAddress()
-		//}
+		if server.EnableAudioHttpStream {
+			multicastInfo.AudioMulticastAddress, multicastInfo.AudioStreamPort = RandomMulticastAddress()
+		}
 		//if server.EnableVideoHttpStream {
 		//	multicastInfo.VideoMulticastAddress, multicastInfo.VideoStreamPort = RandomMulticastAddress()
 		//}

@@ -111,12 +111,15 @@ func (listener *AudioUdpDataListener) Start() (err error) {
 			return fmt.Errorf("invalidation rtsp pusher, path:%s", listener.rtspPath)
 		}
 		//启用组播监听
+		listener.logger.Printf("http mp3 multicast listen multicast address:%s, port:%d", multicastInfo.AudioMulticastAddress, multicastInfo.AudioStreamPort)
 		if conn, err = listener.doMediaStreamMulticastListen(multicastInfo.AudioStreamPort, multicastInfo.AudioMulticastAddress); err != nil {
+			listener.logger.Printf("http mp3 multicast listen error:%v", err)
 			return err
 		}
 	} else {
 		//发送到本地
 		if conn, err = listener.doMediaStreamLocalListen(); err != nil {
+			listener.logger.Printf("http mp3 local listen error:%v", err)
 			return err
 		}
 	}
@@ -149,6 +152,7 @@ func (listener *AudioUdpDataListener) Start() (err error) {
 		if currentPusher {
 			addrs, err := GetServer().multicastBindInf.Addrs()
 			if err != nil {
+				listener.logger.Printf("get multicast interface bind ipv4 addr error:%v", err)
 				return err
 			}
 			if len(addrs) == 0 {
