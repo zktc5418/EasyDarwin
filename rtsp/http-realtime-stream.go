@@ -156,17 +156,10 @@ func getIpv4(addrs []net.Addr) string {
 		if strings.HasPrefix(s, "::1/") || strings.HasPrefix(s, "0:0:0:0:0:0:0:1/") || strings.Contains(s, "127.0.0.1") {
 			continue
 		}
-		switch v := addr.(type) {
-		case *net.IPAddr:
-			if ip := v.IP.To4().String(); !v.IP.IsLoopback() && strings.Contains(ip, ".") {
-				return ip
+		if ipnet, ok := addr.(*net.IPNet); ok && !ipnet.IP.IsLoopback() {
+			if ip := ipnet.IP.To4(); ip != nil && strings.Contains(ip.String(), ".") {
+				return ip.String()
 			}
-		case *net.IPNet:
-			if ip := v.IP.To4().String(); !v.IP.IsLoopback() && strings.Contains(ip, ".") {
-				return ip
-			}
-		default:
-			continue
 		}
 	}
 	addr := GetAddr()
