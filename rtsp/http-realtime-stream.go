@@ -158,18 +158,30 @@ func getIpv4(addrs []net.Addr) string {
 		}
 		switch v := addr.(type) {
 		case *net.IPAddr:
-			if ip := v.IP.To4().String(); strings.Contains(ip, ".") {
+			if ip := v.IP.To4().String(); !v.IP.IsLoopback() && strings.Contains(ip, ".") {
 				return ip
 			}
 		case *net.IPNet:
-			if ip := v.IP.To4().String(); strings.Contains(ip, ".") {
+			if ip := v.IP.To4().String(); !v.IP.IsLoopback() && strings.Contains(ip, ".") {
 				return ip
 			}
 		default:
 			continue
 		}
 	}
-	return ""
+	addr := GetAddr()
+	GetServer().logger.Printf("could not find multicast ipv4 address:%v, return default: %s", addrs, addr)
+	return addr
+}
+
+func GetAddr() string { //Get ip
+	conn, err := net.Dial("udp", "baidu.com:80")
+	if err != nil {
+		fmt.Println(err.Error())
+		return ""
+	}
+	defer conn.Close()
+	return strings.Split(conn.LocalAddr().String(), ":")[0]
 }
 
 func Errors() gin.HandlerFunc {
