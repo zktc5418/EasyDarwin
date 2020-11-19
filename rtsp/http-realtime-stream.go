@@ -38,6 +38,7 @@ type HttpPlayStreamInfo struct {
 	authCookie string
 	overed     bool
 	mediaData  chan *[]byte
+	clientAdd  string
 }
 
 //rtsp服务器接收媒体流
@@ -68,6 +69,7 @@ func (info *HttpPlayStreamInfo) ToRtspWebHookInfo(actionType WebHookActionType) 
 		Path:        info.rtspPath,
 		URL:         info.fullPath,
 		SDP:         "",
+		ClientAddr:  info.clientAdd,
 	}
 }
 
@@ -215,6 +217,7 @@ func generateHttpStreamInfo(c *gin.Context) *HttpPlayStreamInfo {
 			fullPath:  c.Request.RequestURI,
 			overed:    false,
 			mediaData: make(chan *[]byte, 128),
+			clientAdd: strings.Split(c.Request.RemoteAddr, ":")[0],
 		}
 		server := GetServer()
 		if server.localAuthorizationEnable || server.remoteHttpAuthorizationEnable {

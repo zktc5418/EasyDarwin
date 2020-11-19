@@ -439,7 +439,7 @@ func (session *Session) handleRequest(req *Request) {
 			res.Status = "Invalid URL"
 			return
 		}
-		if continueProcess := NewWebHookInfo(ON_PUBLISH, session.ID, SESSION_TYPE_PUSHER, TRANS_TYPE_TCP, req.URL, surl.Path, req.Body).ExecuteWebHookNotify(); !continueProcess {
+		if continueProcess := NewWebHookInfo(ON_PUBLISH, session.ID, SESSION_TYPE_PUSHER, TRANS_TYPE_TCP, req.URL, surl.Path, req.Body, session.Conn.RemoteAddr().String()).ExecuteWebHookNotify(); !continueProcess {
 			res.StatusCode = 500
 			res.Status = "Server not allowed you push stream"
 			return
@@ -513,7 +513,7 @@ func (session *Session) handleRequest(req *Request) {
 			res.Status = "Invalid URL"
 			return
 		}
-		if continueProcess := NewWebHookInfo(ON_PLAY, session.ID, SESSEION_TYPE_PLAYER, TRANS_TYPE_TCP, req.URL, url.Path, req.Body).ExecuteWebHookNotify(); !continueProcess {
+		if continueProcess := NewWebHookInfo(ON_PLAY, session.ID, SESSEION_TYPE_PLAYER, TRANS_TYPE_TCP, req.URL, url.Path, req.Body, session.Conn.RemoteAddr().String()).ExecuteWebHookNotify(); !continueProcess {
 			res.StatusCode = 500
 			res.Status = "Server not allowed you pull stream"
 			return
