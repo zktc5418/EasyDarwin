@@ -521,9 +521,24 @@ func (session *Session) handleRequest(req *Request) {
 		session.Path = url.Path
 		pusher := session.Server.GetPusher(session.Path)
 		if pusher == nil {
-			res.StatusCode = 404
-			res.Status = "NOT FOUND"
-			return
+			waitExist := false
+			if session.Server.streamNotExistHoldMillisecond != 0 {
+				end := time.Now().Add(session.Server.streamNotExistHoldMillisecond)
+				for time.Now().Before(end) {
+					pusher = session.Server.GetPusher(session.Path)
+					if pusher == nil {
+						time.Sleep(time.Duration(200) * time.Millisecond)
+					} else {
+						waitExist = true
+						break
+					}
+				}
+			}
+			if !waitExist {
+				res.StatusCode = 404
+				res.Status = "NOT FOUND"
+				return
+			}
 		}
 		session.Player = NewPlayer(session, pusher)
 		session.Pusher = pusher

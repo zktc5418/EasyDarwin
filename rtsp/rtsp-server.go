@@ -37,6 +37,7 @@ type Server struct {
 	playerQueueLimit              int
 	dropPacketWhenPaused          bool
 	rtspTimeoutMillisecond        int
+	streamNotExistHoldMillisecond time.Duration
 	localAuthorizationEnable      bool
 	remoteHttpAuthorizationEnable bool
 	remoteHttpAuthorizationUrl    string
@@ -205,6 +206,7 @@ var Instance *Server = func() (server *Server) {
 		playerQueueLimit:              rtspFile.Key("player_queue_limit").MustInt(0),
 		dropPacketWhenPaused:          rtspFile.Key("drop_packet_when_paused").MustBool(false),
 		rtspTimeoutMillisecond:        rtspFile.Key("timeout").MustInt(0),
+		streamNotExistHoldMillisecond: time.Duration(rtspFile.Key("stream_notexist_wait_second").MustInt(0)) * time.Second,
 		localAuthorizationEnable:      rtspFile.Key("local_authorization_enable").MustBool(false),
 		remoteHttpAuthorizationEnable: rtspFile.Key("remote_http_authorization_enable").MustBool(false),
 		remoteHttpAuthorizationUrl:    rtspFile.Key("remote_http_authorization_url").Value(),
