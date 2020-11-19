@@ -279,12 +279,12 @@ func (handler MediaStreamGinHandler) BeforeProcessMediaStream(c *gin.Context) {
 	//拉流通知
 	webHookInfo := streamInfo.ToRtspWebHookInfo(ON_PLAY)
 	if webHookInfo.ExecuteWebHookNotify() {
-		if pusher := server.GetPusher(streamInfo.rtspPath); pusher == nil {
+		if pusher := server.pushers[streamInfo.rtspPath]; pusher == nil {
 			waitExist := false
 			if server.streamNotExistHoldMillisecond != 0 {
 				end := time.Now().Add(server.streamNotExistHoldMillisecond)
 				for time.Now().Before(end) {
-					pusher = server.GetPusher(streamInfo.rtspPath)
+					pusher = server.pushers[streamInfo.rtspPath]
 					if pusher == nil {
 						time.Sleep(time.Duration(200) * time.Millisecond)
 					} else {

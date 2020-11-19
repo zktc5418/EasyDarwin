@@ -519,13 +519,13 @@ func (session *Session) handleRequest(req *Request) {
 			return
 		}
 		session.Path = url.Path
-		pusher := session.Server.GetPusher(session.Path)
+		pusher := session.Server.pushers[session.Path]
 		if pusher == nil {
 			waitExist := false
 			if session.Server.streamNotExistHoldMillisecond != 0 {
 				end := time.Now().Add(session.Server.streamNotExistHoldMillisecond)
 				for time.Now().Before(end) {
-					pusher = session.Server.GetPusher(session.Path)
+					pusher = session.Server.pushers[session.Path]
 					if pusher == nil {
 						time.Sleep(time.Duration(200) * time.Millisecond)
 					} else {
