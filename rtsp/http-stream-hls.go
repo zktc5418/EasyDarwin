@@ -3,6 +3,7 @@ package rtsp
 import (
 	"github.com/gin-contrib/cors"
 	"github.com/gin-contrib/pprof"
+	"github.com/gin-contrib/static"
 	"github.com/gin-gonic/gin"
 	"time"
 )
@@ -47,7 +48,7 @@ func InitHlsStream() (err error) {
 	}))
 	//id := shortid.MustGenerate()
 	HlsStreamRouter.Use(hlsStreamGinHandler.BeforeProcessMediaStream)
-	HlsStreamRouter.Static("/hls", GetServer().NginxRtmpHlsMapDir)
+	HlsStreamRouter.Use(static.Serve("/", static.LocalFile(GetServer().NginxRtmpHlsMapDir, false)))
 	return nil
 }
 
