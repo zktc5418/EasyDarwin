@@ -58,7 +58,7 @@ func DecodeAuthorizationInfo(authLine string, serverNonce string, requestMethod 
 		authLine: authLine,
 	}
 	if server.authorizationType == BASIC {
-		baseMatch := BASIC_REX.FindStringSubmatch("Basic YWRtaW46YWRtaW4=")
+		baseMatch := BASIC_REX.FindStringSubmatch(authLine)
 		authByte, decErr := base64.StdEncoding.DecodeString(baseMatch[2])
 		if decErr != nil {
 			authError.err = decErr.Error()
