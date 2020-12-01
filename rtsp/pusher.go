@@ -338,6 +338,11 @@ func (pusher *Pusher) bindSession(session *Session) {
 			session.logger.Printf("Session recv rtp to pusher.but pusher got a new session[%v].", pusher.Session.ID)
 			return
 		}
+		defer func() {
+			if err := recover(); err != nil {
+				session.logger.Printf("session running error:%v", err)
+			}
+		}()
 		pusher.QueueRTP(pack)
 	})
 	session.StopHandles = append(session.StopHandles, func() {

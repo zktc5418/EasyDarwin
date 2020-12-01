@@ -199,6 +199,11 @@ func (session *Session) Stop() {
 }
 
 func (session *Session) startRtpHandler() {
+	defer func() {
+		if err := recover(); err != nil {
+			session.logger.Printf("session running error:%v", err)
+		}
+	}()
 	for !session.Stoped {
 		if pack, ok := <-session.rtpPackHandelChan; ok {
 			for _, h := range session.RTPHandles {
@@ -209,6 +214,11 @@ func (session *Session) startRtpHandler() {
 }
 
 func (session *Session) startRequestHandler() {
+	defer func() {
+		if err := recover(); err != nil {
+			session.logger.Printf("session running error:%v", err)
+		}
+	}()
 	for !session.Stoped {
 		if req, ok := <-session.requestHandelChan; ok {
 			session.handleRequest(req)
@@ -218,6 +228,11 @@ func (session *Session) startRequestHandler() {
 
 func (session *Session) Start() {
 	defer session.Stop()
+	defer func() {
+		if err := recover(); err != nil {
+			session.logger.Printf("session running error:%v", err)
+		}
+	}()
 	buf1 := make([]byte, 1)
 	buf2 := make([]byte, 2)
 	logger := session.logger
