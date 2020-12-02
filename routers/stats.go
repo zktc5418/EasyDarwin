@@ -107,18 +107,18 @@ func (h *APIHandler) Players(c *gin.Context) {
 			players = append(players, player)
 		}
 	}
-	hostname := utils.GetRequestHostname(c.Request)
+	//hostname := utils.GetRequestHostname(c.Request)
 	_players := make([]interface{}, 0)
 	for i := 0; i < len(players); i++ {
 		player := players[i]
-		port := player.Server.TCPPort
-		rtsp := fmt.Sprintf("rtsp://%s:%d%s", hostname, port, player.Path)
-		if port == 554 {
-			rtsp = fmt.Sprintf("rtsp://%s%s", hostname, player.Path)
-		}
+		//port := player.Server.TCPPort
+		//rtsp := fmt.Sprintf("rtsp://%s:%d%s", hostname, port, player.Path)
+		//if port == 554 {
+		//	rtsp = fmt.Sprintf("rtsp://%s%s", hostname, player.Path)
+		//}
 		_players = append(_players, map[string]interface{}{
 			"id":        player.ID,
-			"path":      rtsp,
+			"path":      player.URL,
 			"transType": player.TransType.String(),
 			"inBytes":   player.InBytes,
 			"outBytes":  player.OutBytes,
