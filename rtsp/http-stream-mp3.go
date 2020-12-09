@@ -12,9 +12,9 @@ import (
 	"time"
 )
 
-const FFmpegMp3ConvertLocalCmd string = "ffmpeg -rtsp_transport tcp -i rtsp://127.0.0.1:%d%s -nostdin -vn -c:a libmp3lame -f mp3 -v error udp://127.0.0.1:%d"
+const FFmpegMp3ConvertLocalCmd string = "ffmpeg -rtsp_transport tcp -i rtsp://127.0.0.1:%d%s -nostdin -vn -c:a libmp3lame -muxdelay 0.1 -f mp3 -v error udp://127.0.0.1:%d"
 
-const FFmpegMp3ConvertMulticastCmd string = "ffmpeg -rtsp_transport tcp -i rtsp://127.0.0.1:%d%s -nostdin -vn -c:a libmp3lame -f mp3 -v error udp://%s:%d?localaddr=%s"
+const FFmpegMp3ConvertMulticastCmd string = "ffmpeg -rtsp_transport tcp -i rtsp://127.0.0.1:%d%s -nostdin -vn -c:a libmp3lame -muxdelay 0.1 -f mp3 -v error udp://%s:%d?localaddr=%s"
 
 var (
 	Mp3StreamRouter *gin.Engine
