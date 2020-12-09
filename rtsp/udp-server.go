@@ -4,10 +4,9 @@ import (
 	"bytes"
 	"fmt"
 	"github.com/bruce-qin/EasyGoLib/utils"
+	"golang.org/x/net/ipv4"
 	"log"
 	"net"
-	"strconv"
-	"strings"
 	"time"
 )
 
@@ -16,13 +15,13 @@ type UDPServer struct {
 	*RTSPClient
 
 	APort        int
-	AConn        *net.UDPConn
+	AConn        *ipv4.PacketConn
 	AControlPort int
-	AControlConn *net.UDPConn
+	AControlConn *ipv4.PacketConn
 	VPort        int
-	VConn        *net.UDPConn
+	VConn        *ipv4.PacketConn
 	VControlPort int
-	VControlConn *net.UDPConn
+	VControlConn *ipv4.PacketConn
 
 	Stoped bool
 }
@@ -96,34 +95,20 @@ func (s *UDPServer) SetupAudio() (err error) {
 	if err != nil {
 		return
 	}
-	addr, err := net.ResolveUDPAddr("udp", fmt.Sprint(":", aport))
+	aConn, err := net.ListenPacket("udp4", fmt.Sprint(":", aport))
 	if err != nil {
+		logger.Printf("udp server audio conn set listen error, %v", err)
 		return
 	}
-	s.AConn, err = net.ListenUDP("udp", addr)
-	if err != nil {
-		return
-	}
-	networkBuffer := server.networkBuffer
-	if err = s.AConn.SetReadBuffer(networkBuffer); err != nil {
-		logger.Printf("udp server audio conn set read buffer error, %v", err)
-	}
-	if err = s.AConn.SetWriteBuffer(networkBuffer); err != nil {
-		logger.Printf("udp server audio conn set write buffer error, %v", err)
-	}
-	la := s.AConn.LocalAddr().String()
-	strPort := la[strings.LastIndex(la, ":")+1:]
-	s.APort, err = strconv.Atoi(strPort)
-	if err != nil {
-		return
-	}
+	s.AConn = ipv4.NewPacketConn(aConn)
+	s.APort = int(aport)
 	go func() {
 		bufUDP := make([]byte, UDP_BUF_SIZE)
 		logger.Printf("udp server start listen audio port[%d]", s.APort)
 		defer logger.Printf("udp server stop listen audio port[%d]", s.APort)
 		timer := time.Unix(0, 0)
 		for !s.Stoped {
-			if n, _, err := s.AConn.ReadFromUDP(bufUDP); err == nil {
+			if n, _, _, err := s.AConn.ReadFrom(bufUDP); err == nil {
 				elapsed := time.Now().Sub(timer)
 				if elapsed >= 30*time.Second {
 					logger.Printf("Package recv from AConn.len:%d\n", n)
@@ -147,32 +132,19 @@ func (s *UDPServer) SetupAudio() (err error) {
 	if err != nil {
 		return
 	}
-	addr, err = net.ResolveUDPAddr("udp", fmt.Sprint(":", cport))
+	aControlConn, err := net.ListenPacket("udp4", fmt.Sprint(":", cport))
 	if err != nil {
+		logger.Printf("udp server audio control conn set listen error, %v", err)
 		return
 	}
-	s.AControlConn, err = net.ListenUDP("udp", addr)
-	if err != nil {
-		return
-	}
-	if err = s.AControlConn.SetReadBuffer(networkBuffer); err != nil {
-		logger.Printf("udp server audio control conn set read buffer error, %v", err)
-	}
-	if err = s.AControlConn.SetWriteBuffer(networkBuffer); err != nil {
-		logger.Printf("udp server audio control conn set write buffer error, %v", err)
-	}
-	la = s.AControlConn.LocalAddr().String()
-	strPort = la[strings.LastIndex(la, ":")+1:]
-	s.AControlPort, err = strconv.Atoi(strPort)
-	if err != nil {
-		return
-	}
+	s.AControlConn = ipv4.NewPacketConn(aControlConn)
+	s.AControlPort = int(cport)
 	go func() {
 		bufUDP := make([]byte, UDP_BUF_SIZE)
 		logger.Printf("udp server start listen audio control port[%d]", s.AControlPort)
 		defer logger.Printf("udp server stop listen audio control port[%d]", s.AControlPort)
 		for !s.Stoped {
-			if n, _, err := s.AControlConn.ReadFromUDP(bufUDP); err == nil {
+			if n, _, _, err := s.AControlConn.ReadFrom(bufUDP); err == nil {
 				//logger.Printf("Package recv from AControlConn.len:%d\n", n)
 				rtpBytes := make([]byte, n)
 				s.AddInputBytes(n)
@@ -198,34 +170,20 @@ func (s *UDPServer) SetupVideo() (err error) {
 	if err != nil {
 		return
 	}
-	addr, err := net.ResolveUDPAddr("udp", fmt.Sprint(":", vport))
+	vConn, err := net.ListenPacket("udp4", fmt.Sprint(":", vport))
 	if err != nil {
+		logger.Printf("udp server video conn set listen error, %v", err)
 		return
 	}
-	s.VConn, err = net.ListenUDP("udp", addr)
-	if err != nil {
-		return
-	}
-	networkBuffer := server.networkBuffer
-	if err = s.VConn.SetReadBuffer(networkBuffer); err != nil {
-		logger.Printf("udp server video conn set read buffer error, %v", err)
-	}
-	if err = s.VConn.SetWriteBuffer(networkBuffer); err != nil {
-		logger.Printf("udp server video conn set write buffer error, %v", err)
-	}
-	la := s.VConn.LocalAddr().String()
-	strPort := la[strings.LastIndex(la, ":")+1:]
-	s.VPort, err = strconv.Atoi(strPort)
-	if err != nil {
-		return
-	}
+	s.VConn = ipv4.NewPacketConn(vConn)
+	s.VPort = int(vport)
 	go func() {
 		bufUDP := make([]byte, UDP_BUF_SIZE)
 		logger.Printf("udp server start listen video port[%d]", s.VPort)
 		defer logger.Printf("udp server stop listen video port[%d]", s.VPort)
 		timer := time.Unix(0, 0)
 		for !s.Stoped {
-			if n, _, err := s.VConn.ReadFromUDP(bufUDP); err == nil {
+			if n, _, _, err := s.VConn.ReadFrom(bufUDP); err == nil {
 				elapsed := time.Now().Sub(timer)
 				if elapsed >= 30*time.Second {
 					logger.Printf("Package recv from VConn.len:%d\n", n)
@@ -250,32 +208,19 @@ func (s *UDPServer) SetupVideo() (err error) {
 	if err != nil {
 		return
 	}
-	addr, err = net.ResolveUDPAddr("udp", fmt.Sprint(":", cport))
+	vControlConn, err := net.ListenPacket("udp4", fmt.Sprint(":", cport))
 	if err != nil {
+		logger.Printf("udp server video control conn set listen error, %v", err)
 		return
 	}
-	s.VControlConn, err = net.ListenUDP("udp", addr)
-	if err != nil {
-		return
-	}
-	if err = s.VControlConn.SetReadBuffer(networkBuffer); err != nil {
-		logger.Printf("udp server video control conn set read buffer error, %v", err)
-	}
-	if err = s.VControlConn.SetWriteBuffer(networkBuffer); err != nil {
-		logger.Printf("udp server video control conn set write buffer error, %v", err)
-	}
-	la = s.VControlConn.LocalAddr().String()
-	strPort = la[strings.LastIndex(la, ":")+1:]
-	s.VControlPort, err = strconv.Atoi(strPort)
-	if err != nil {
-		return
-	}
+	s.VControlConn = ipv4.NewPacketConn(vControlConn)
+	s.VControlPort = int(cport)
 	go func() {
 		bufUDP := make([]byte, UDP_BUF_SIZE)
 		logger.Printf("udp server start listen video control port[%d]", s.VControlPort)
 		defer logger.Printf("udp server stop listen video control port[%d]", s.VControlPort)
 		for !s.Stoped {
-			if n, _, err := s.VControlConn.ReadFromUDP(bufUDP); err == nil {
+			if n, _, _, err := s.VControlConn.ReadFrom(bufUDP); err == nil {
 				//logger.Printf("Package recv from VControlConn.len:%d\n", n)
 				rtpBytes := make([]byte, n)
 				s.AddInputBytes(n)
