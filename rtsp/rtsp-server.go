@@ -18,11 +18,12 @@ import (
 
 type Server struct {
 	SessionLogger
-	TCPListener  *net.TCPListener
-	TCPPort      int
-	Stoped       bool
-	pushers      *sync.Map //map[string]*Pusher // Path <-> Pusher
-	pushersCache map[string]*Pusher
+	TCPListener       *net.TCPListener
+	TCPPort           int
+	Stoped            bool
+	pushers           *sync.Map //map[string]*Pusher // Path <-> Pusher
+	pushersCache      map[string]*Pusher
+	pushersCacheQueue chan bool
 	//pushersLock                   sync.RWMutex
 	addPusherCh                   chan *Pusher
 	removePusherCh                chan *Pusher
@@ -194,6 +195,7 @@ var Instance *Server = func() (server *Server) {
 		TCPPort:                       rtspFile.Key("port").MustInt(554),
 		pushers:                       &sync.Map{},
 		pushersCache:                  make(map[string]*Pusher),
+		pushersCacheQueue:             make(chan bool, 100),
 		addPusherCh:                   make(chan *Pusher),
 		removePusherCh:                make(chan *Pusher),
 		rtpMinUdpPort:                 uint16(rtpMinPort),
@@ -423,6 +425,14 @@ func (server *Server) Start() (err error) {
 		}
 	}()
 
+	go func() {
+		for !server.Stoped {
+			select {
+			case <-server.pushersCacheQueue:
+				server.buildPushersCache()
+			}
+		}
+	}()
 	server.Stoped = false
 	server.TCPListener = listener
 	logger.Println("rtsp server start on", server.TCPPort)
@@ -476,8 +486,8 @@ func (server *Server) AddPusher(pusher *Pusher) bool {
 	}
 	if added {
 		go pusher.Start()
-		server.buildtPushersCache()
 		server.addPusherCh <- pusher
+		server.pushersCacheQueue <- true
 		if GetServer().EnableAudioHttpStream {
 			pusher.udpHttpAudioStreamListener = NewMp3UdpDataListener(pusher)
 			if err := pusher.udpHttpAudioStreamListener.Start(); err != nil {
@@ -514,7 +524,7 @@ func (server *Server) RemovePusher(pusher *Pusher) {
 	logger := server.logger
 	removed := false
 	if _pusher, ok := server.pushers.Load(pusher.Path()); ok && pusher.ID() == _pusher.(*Pusher).ID() {
-		server.buildtPushersCache()
+		server.pushersCacheQueue <- true
 		server.pushers.Delete(pusher.Path())
 		logger.Printf("%v end, pusher[%v]\n", pusher, _pusher.(*Pusher).Path())
 		removed = true
@@ -530,7 +540,7 @@ func (server *Server) GetPusher(path string) (pusher *Pusher) {
 	return
 }
 
-func (server *Server) buildtPushersCache() {
+func (server *Server) buildPushersCache() {
 	pushers := make(map[string]*Pusher)
 	server.pushers.Range(func(key, value interface{}) bool {
 		pushers[key.(string)] = value.(*Pusher)

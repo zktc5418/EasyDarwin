@@ -26,6 +26,7 @@ type Pusher struct {
 	spsppsInSTAPaPack bool
 	//cond              *sync.Cond
 	queue                      chan *RTPPack
+	cacheQueue                 chan bool
 	udpHttpAudioStreamListener *AudioUdpDataListener
 	//udpHttpVideoStreamListener *VideoUdpDataListener
 }
@@ -226,7 +227,7 @@ func NewClientPusher(client *RTSPClient) (pusher *Pusher) {
 		playersCache:   make(map[string]*Player),
 		gopCacheEnable: GetServer().gopCacheEnable,
 		gopCache:       make([]*RTPPack, 0),
-
+		cacheQueue:     make(chan bool, 100),
 		//cond:  sync.NewCond(&sync.Mutex{}),
 		queue: make(chan *RTPPack, MAX_GOP_CACHE_LEN),
 	}
@@ -305,7 +306,8 @@ func NewMulticastPusher(multiInfo *MulticastCommunicateInfo) (pusher *Pusher) {
 		gopCache:       make([]*RTPPack, 0),
 
 		//cond:  sync.NewCond(&sync.Mutex{}),
-		queue: make(chan *RTPPack, MAX_GOP_CACHE_LEN),
+		cacheQueue: make(chan bool, 100),
+		queue:      make(chan *RTPPack, MAX_GOP_CACHE_LEN),
 	}
 	multicastClient, _ := StartMulticastListen(pusher, multiInfo)
 	pusher.MulticastClient = multicastClient
@@ -328,8 +330,8 @@ func NewPusher(session *Session) (pusher *Pusher) {
 		playersCache:   make(map[string]*Player),
 		gopCacheEnable: GetServer().gopCacheEnable,
 		gopCache:       make([]*RTPPack, 0),
-
-		queue: make(chan *RTPPack, MAX_GOP_CACHE_LEN),
+		cacheQueue:     make(chan bool, 100),
+		queue:          make(chan *RTPPack, MAX_GOP_CACHE_LEN),
 	}
 	pusher.bindSession(session)
 	return
@@ -485,6 +487,14 @@ func (pusher *Pusher) QueueRTP(pack *RTPPack) *Pusher {
 
 func (pusher *Pusher) Start() {
 	logger := pusher.Logger()
+	go func() {
+		for !pusher.Stoped() {
+			select {
+			case <-pusher.cacheQueue:
+				pusher.buildPlayersCache()
+			}
+		}
+	}()
 	for !pusher.Stoped() {
 		var pack *RTPPack
 		pack, ok := <-pusher.queue
@@ -574,7 +584,7 @@ func (pusher *Pusher) HasPlayer(player *Player) bool {
 
 func (pusher *Pusher) AddPlayer(player *Player) *Pusher {
 	pusher.players.Store(player.ID, player)
-	pusher.buildPlayersCache()
+	pusher.cacheQueue <- true
 	go player.Start()
 	logger := pusher.Logger()
 	logger.Printf("%v start, pusher[%v]", player, pusher.Path())
@@ -593,7 +603,7 @@ func (pusher *Pusher) AddPlayer(player *Player) *Pusher {
 func (pusher *Pusher) RemovePlayer(player *Player) *Pusher {
 	logger := pusher.Logger()
 	pusher.players.Delete(player.ID)
-	pusher.buildPlayersCache()
+	pusher.cacheQueue <- true
 	logger.Printf("%v end, pusher[%v]\n", player, pusher.Path())
 	return pusher
 }
@@ -602,7 +612,7 @@ func (pusher *Pusher) ClearPlayer() {
 	// copy a new map to avoid deadlock
 	players := pusher.players
 	pusher.players = &sync.Map{}
-	pusher.playersCache = make(map[string]*Player)
+	pusher.cacheQueue <- true
 	players.Range(func(key, value interface{}) bool {
 		value.(*Player).Stop()
 		return true
