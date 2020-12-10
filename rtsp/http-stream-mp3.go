@@ -64,9 +64,9 @@ func (handler AudioStreamGinHandler) ProcessMp3Stream(c *gin.Context) {
 	defer func() {
 		streamInfo.ToRtspWebHookInfo(ON_STOP).ExecuteWebHookNotify()
 		streamInfo.overed = true
-		delete(server.pushers[streamInfo.rtspPath].udpHttpAudioStreamListener.pullerMap, streamInfo.id)
+		delete(server.GetPusher(streamInfo.rtspPath).udpHttpAudioStreamListener.pullerMap, streamInfo.id)
 	}()
-	server.pushers[streamInfo.rtspPath].udpHttpAudioStreamListener.pullerMap[streamInfo.id] = streamInfo
+	server.GetPusher(streamInfo.rtspPath).udpHttpAudioStreamListener.pullerMap[streamInfo.id] = streamInfo
 	c.Stream(func(w io.Writer) bool {
 		if !streamInfo.overed {
 			data := <-streamInfo.mediaData

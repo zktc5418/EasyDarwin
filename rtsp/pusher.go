@@ -14,8 +14,9 @@ type Pusher struct {
 	*RTSPClient
 	//不为null则表示是组播推流
 	*MulticastClient
-	players        map[string]*Player //SessionID <-> Player
-	playersLock    sync.RWMutex
+
+	players *sync.Map //map[string]*Player //SessionID <-> Player
+	//playersLock    sync.RWMutex
 	gopCacheEnable bool
 
 	gopCache []*RTPPack
@@ -220,7 +221,7 @@ func NewClientPusher(client *RTSPClient) (pusher *Pusher) {
 	pusher = &Pusher{
 		RTSPClient:     client,
 		Session:        nil,
-		players:        make(map[string]*Player),
+		players:        &sync.Map{},
 		gopCacheEnable: GetServer().gopCacheEnable,
 		gopCache:       make([]*RTPPack, 0),
 
@@ -296,7 +297,7 @@ func NewClientPusher(client *RTSPClient) (pusher *Pusher) {
 func NewMulticastPusher(multiInfo *MulticastCommunicateInfo) (pusher *Pusher) {
 	pusher = &Pusher{
 		RTSPClient:     nil,
-		players:        make(map[string]*Player),
+		players:        &sync.Map{},
 		gopCacheEnable: GetServer().gopCacheEnable,
 		gopCache:       make([]*RTPPack, 0),
 
@@ -320,7 +321,7 @@ func NewPusher(session *Session) (pusher *Pusher) {
 	pusher = &Pusher{
 		Session:        session,
 		RTSPClient:     nil,
-		players:        make(map[string]*Player),
+		players:        &sync.Map{},
 		gopCacheEnable: GetServer().gopCacheEnable,
 		gopCache:       make([]*RTPPack, 0),
 
@@ -552,30 +553,23 @@ func (pusher *Pusher) BroadcastRTP(pack *RTPPack) *Pusher {
 
 func (pusher *Pusher) GetPlayers() (players map[string]*Player) {
 	players = make(map[string]*Player)
-	pusher.playersLock.RLock()
-	for k, v := range pusher.players {
-		players[k] = v
-	}
-	pusher.playersLock.RUnlock()
+	pusher.players.Range(func(key, value interface{}) bool {
+		players[key.(string)] = value.(*Player)
+		return true
+	})
 	return
 }
 
 func (pusher *Pusher) HasPlayer(player *Player) bool {
-	pusher.playersLock.RLock()
-	_, ok := pusher.players[player.ID]
-	pusher.playersLock.RUnlock()
+	_, ok := pusher.players.Load(player.ID)
 	return ok
 }
 
 func (pusher *Pusher) AddPlayer(player *Player) *Pusher {
+	pusher.players.Store(player.ID, player)
 	logger := pusher.Logger()
-	pusher.playersLock.Lock()
-	if _, ok := pusher.players[player.ID]; !ok {
-		pusher.players[player.ID] = player
-		go player.Start()
-		logger.Printf("%v start, now player size[%d]", player, len(pusher.players))
-	}
-	pusher.playersLock.Unlock()
+	go player.Start()
+	logger.Printf("%v start, pusher[%v]", player, pusher.Path())
 	if pusher.gopCacheEnable {
 		//pusher.gopCacheLock.RLock()
 		packs := pusher.gopCache[:]
@@ -590,32 +584,19 @@ func (pusher *Pusher) AddPlayer(player *Player) *Pusher {
 
 func (pusher *Pusher) RemovePlayer(player *Player) *Pusher {
 	logger := pusher.Logger()
-	pusher.playersLock.Lock()
-	if len(pusher.players) == 0 {
-		pusher.playersLock.Unlock()
-		return pusher
-	}
-	delete(pusher.players, player.ID)
-	logger.Printf("%v end, now player size[%d]\n", player, len(pusher.players))
-	pusher.playersLock.Unlock()
+	pusher.players.Delete(player.ID)
+	logger.Printf("%v end, pusher[%v]\n", player, pusher.Path())
 	return pusher
 }
 
 func (pusher *Pusher) ClearPlayer() {
 	// copy a new map to avoid deadlock
 	players := pusher.players
-	pusher.playersLock.Lock()
-	//for k, v := range pusher.players {
-	//	//v.Stop()
-	//	players[k] = v
-	//}
-	pusher.players = make(map[string]*Player)
-	pusher.playersLock.Unlock()
-	go func() { // do not block
-		for _, v := range players {
-			v.Stop()
-		}
-	}()
+	pusher.players = &sync.Map{}
+	players.Range(func(key, value interface{}) bool {
+		value.(*Player).Stop()
+		return true
+	})
 }
 
 func (pusher *Pusher) shouldSequenceStart(rtp *RTPInfo) bool {

@@ -50,7 +50,7 @@ func (bag CmdRepeatBag) Run(overErrorTimeCallBack func()) {
 			bag.logger.Printf("exit  process error:%v", err2)
 		}
 		if !bag.PusherTerminated {
-			if pusher := GetServer().pushers[bag.pusherPath]; pusher != nil && pusher.ID() == bag.sessionId && bag.errorTime < bag.MaxRepeatTime {
+			if pusher := GetServer().GetPusher(bag.pusherPath); pusher != nil && pusher.ID() == bag.sessionId && bag.errorTime < bag.MaxRepeatTime {
 				//错误重试
 				time.Sleep(time.Duration(2) * time.Second)
 				bag.errorTime++

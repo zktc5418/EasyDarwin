@@ -18,11 +18,11 @@ import (
 
 type Server struct {
 	SessionLogger
-	TCPListener                   *net.TCPListener
-	TCPPort                       int
-	Stoped                        bool
-	pushers                       map[string]*Pusher // Path <-> Pusher
-	pushersLock                   sync.RWMutex
+	TCPListener *net.TCPListener
+	TCPPort     int
+	Stoped      bool
+	pushers     *sync.Map //map[string]*Pusher // Path <-> Pusher
+	//pushersLock                   sync.RWMutex
 	addPusherCh                   chan *Pusher
 	removePusherCh                chan *Pusher
 	rtpMinUdpPort                 uint16
@@ -191,7 +191,7 @@ var Instance *Server = func() (server *Server) {
 		SessionLogger:                 logger,
 		Stoped:                        true,
 		TCPPort:                       rtspFile.Key("port").MustInt(554),
-		pushers:                       make(map[string]*Pusher),
+		pushers:                       &sync.Map{},
 		addPusherCh:                   make(chan *Pusher),
 		removePusherCh:                make(chan *Pusher),
 		rtpMinUdpPort:                 uint16(rtpMinPort),
@@ -455,9 +455,7 @@ func (server *Server) Stop() {
 		server.TCPListener.Close()
 		server.TCPListener = nil
 	}
-	server.pushersLock.Lock()
-	server.pushers = make(map[string]*Pusher)
-	server.pushersLock.Unlock()
+	server.pushers = &sync.Map{}
 
 	close(server.addPusherCh)
 	close(server.removePusherCh)
@@ -466,16 +464,14 @@ func (server *Server) Stop() {
 func (server *Server) AddPusher(pusher *Pusher) bool {
 	logger := server.logger
 	added := false
-	server.pushersLock.Lock()
-	_, ok := server.pushers[pusher.Path()]
+	_, ok := server.pushers.Load(pusher.Path())
 	if !ok {
-		server.pushers[pusher.Path()] = pusher
-		logger.Printf("%v start, now pusher size[%d]", pusher, len(server.pushers))
+		server.pushers.Store(pusher.Path(), pusher)
+		logger.Printf("%v start", pusher)
 		added = true
 	} else {
 		added = false
 	}
-	server.pushersLock.Unlock()
 	if added {
 		go pusher.Start()
 		server.addPusherCh <- pusher
@@ -496,10 +492,10 @@ func (server *Server) AddPusher(pusher *Pusher) bool {
 }
 
 func (server *Server) TryAttachToPusher(session *Session) (int, *Pusher) {
-	server.pushersLock.Lock()
 	attached := 0
 	var pusher *Pusher = nil
-	if _pusher, ok := server.pushers[session.Path]; ok {
+	if __pusher, ok := server.pushers.Load(session.Path); ok {
+		_pusher := __pusher.(*Pusher)
 		if _pusher.RebindSession(session) {
 			session.logger.Printf("Attached to a pusher")
 			attached = 1
@@ -508,20 +504,17 @@ func (server *Server) TryAttachToPusher(session *Session) (int, *Pusher) {
 			attached = -1
 		}
 	}
-	server.pushersLock.Unlock()
 	return attached, pusher
 }
 
 func (server *Server) RemovePusher(pusher *Pusher) {
 	logger := server.logger
 	removed := false
-	server.pushersLock.Lock()
-	if _pusher, ok := server.pushers[pusher.Path()]; ok && pusher.ID() == _pusher.ID() {
-		delete(server.pushers, pusher.Path())
-		logger.Printf("%v end, now pusher size[%d]\n", pusher, len(server.pushers))
+	if _pusher, ok := server.pushers.Load(pusher.Path()); ok && pusher.ID() == _pusher.(*Pusher).ID() {
+		server.pushers.Delete(pusher.Path())
+		logger.Printf("%v end, pusher[%v]\n", pusher, _pusher.(*Pusher).Path())
 		removed = true
 	}
-	server.pushersLock.Unlock()
 	if removed {
 		server.removePusherCh <- pusher
 	}
@@ -529,25 +522,27 @@ func (server *Server) RemovePusher(pusher *Pusher) {
 
 //获取推流
 func (server *Server) GetPusher(path string) (pusher *Pusher) {
-	server.pushersLock.RLock()
-	pusher = server.pushers[path]
-	server.pushersLock.RUnlock()
-	return
+	_pusher, _ := server.pushers.Load(path)
+	if _pusher == nil {
+		return nil
+	}
+	return _pusher.(*Pusher)
 }
 
 func (server *Server) GetPushers() (pushers map[string]*Pusher) {
 	pushers = make(map[string]*Pusher)
-	server.pushersLock.RLock()
-	for k, v := range server.pushers {
-		pushers[k] = v
-	}
-	server.pushersLock.RUnlock()
+	server.pushers.Range(func(key, value interface{}) bool {
+		pushers[key.(string)] = value.(*Pusher)
+		return true
+	})
 	return
 }
 
 func (server *Server) GetPusherSize() (size int) {
-	server.pushersLock.RLock()
-	size = len(server.pushers)
-	server.pushersLock.RUnlock()
+	size = 0
+	server.pushers.Range(func(key, value interface{}) bool {
+		size++
+		return true
+	})
 	return
 }
