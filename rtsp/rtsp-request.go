@@ -47,7 +47,7 @@ type Request struct {
 	Body    string
 }
 
-func NewRequest(content string) *Request {
+func NewRequest(content string, logger *log.Logger) *Request {
 	lines := strings.Split(strings.TrimSpace(content), "\r\n")
 	if len(lines) == 0 {
 		return nil
@@ -57,7 +57,7 @@ func NewRequest(content string) *Request {
 		return nil
 	}
 	if !strings.HasPrefix(items[2], "RTSP") {
-		log.Printf("invalid rtsp request, line[0] %s", lines[0])
+		logger.Printf("invalid rtsp request, line[0] %s", lines[0])
 		return nil
 	}
 	header := make(map[string]string)

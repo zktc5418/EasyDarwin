@@ -586,7 +586,7 @@ func (pusher *Pusher) AddPlayer(player *Player) *Pusher {
 	pusher.players.Store(player.ID, player)
 	pusher.cacheQueue <- true
 	go player.Start()
-	logger := pusher.Logger()
+	logger := player.logger
 	logger.Printf("%v start, pusher[%v]", player, pusher.Path())
 	if pusher.gopCacheEnable {
 		//pusher.gopCacheLock.RLock()
@@ -601,7 +601,7 @@ func (pusher *Pusher) AddPlayer(player *Player) *Pusher {
 }
 
 func (pusher *Pusher) RemovePlayer(player *Player) *Pusher {
-	logger := pusher.Logger()
+	logger := player.logger
 	pusher.players.Delete(player.ID)
 	pusher.cacheQueue <- true
 	logger.Printf("%v end, pusher[%v]\n", player, pusher.Path())

@@ -474,7 +474,7 @@ func (server *Server) Stop() {
 }
 
 func (server *Server) AddPusher(pusher *Pusher) bool {
-	logger := server.logger
+	logger := pusher.Logger()
 	added := false
 	_, ok := server.pushers.Load(pusher.Path())
 	if !ok {
@@ -521,12 +521,11 @@ func (server *Server) TryAttachToPusher(session *Session) (int, *Pusher) {
 }
 
 func (server *Server) RemovePusher(pusher *Pusher) {
-	logger := server.logger
 	removed := false
 	if _pusher, ok := server.pushers.Load(pusher.Path()); ok && pusher.ID() == _pusher.(*Pusher).ID() {
 		server.pushersCacheQueue <- true
 		server.pushers.Delete(pusher.Path())
-		logger.Printf("%v end, pusher[%v]\n", pusher, _pusher.(*Pusher).Path())
+		pusher.Logger().Printf("%v end, pusher[%v]\n", pusher, _pusher.(*Pusher).Path())
 		removed = true
 	}
 	if removed {
