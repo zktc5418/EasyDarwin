@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"strings"
 )
@@ -26,9 +27,10 @@ type WebHookInfo struct {
 	SDP         string            `json:"sdp"`
 	ActionType  WebHookActionType `json:"actionType"`
 	ClientAddr  string            `json:"clientAddr"`
+	logger      *log.Logger
 }
 
-func NewWebHookInfo(ActionType WebHookActionType, ID string, sessionType SessionType, transType TransType, url, path, sdp, clientAddr string) (webHook *WebHookInfo) {
+func NewWebHookInfo(ActionType WebHookActionType, ID string, sessionType SessionType, transType TransType, url, path, sdp, clientAddr string, logger *log.Logger) (webHook *WebHookInfo) {
 	webHook = &WebHookInfo{
 		ActionType:  ActionType,
 		ID:          ID,
@@ -38,6 +40,7 @@ func NewWebHookInfo(ActionType WebHookActionType, ID string, sessionType Session
 		Path:        path,
 		SDP:         sdp,
 		ClientAddr:  strings.Split(clientAddr, ":")[0],
+		logger:      logger,
 	}
 	return
 }
@@ -62,6 +65,7 @@ func (session *Session) ToWebHookInfo(ActionType WebHookActionType) (webHook *We
 		Path:        session.Path,
 		SDP:         session.SDPRaw,
 		ClientAddr:  strings.Split(session.Conn.RemoteAddr().String(), ":")[0],
+		logger:      session.logger,
 	}
 	return
 }

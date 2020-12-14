@@ -12,6 +12,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"os"
 	"regexp"
 	"strings"
 	"time"
@@ -31,6 +32,7 @@ type MediaStreamGinHandler struct {
 
 //http客户端拉流
 type HttpPlayStreamInfo struct {
+	SessionLogger
 	id         string
 	rtspPath   string
 	fullPath   string
@@ -70,6 +72,7 @@ func (info *HttpPlayStreamInfo) ToRtspWebHookInfo(actionType WebHookActionType) 
 		URL:         info.fullPath,
 		SDP:         "",
 		ClientAddr:  info.clientAdd,
+		logger:      info.logger,
 	}
 }
 
@@ -219,6 +222,7 @@ func generateHttpStreamInfo(c *gin.Context) *HttpPlayStreamInfo {
 			mediaData: make(chan *[]byte, 128),
 			clientAdd: strings.Split(c.Request.RemoteAddr, ":")[0],
 		}
+		info.logger = log.New(os.Stdout, fmt.Sprintf("http-realtime-stream-server::[ID:%s, path:%s]", id, info.rtspPath), log.LstdFlags|log.Lshortfile)
 		server := GetServer()
 		if server.localAuthorizationEnable || server.remoteHttpAuthorizationEnable {
 			var nonce, token string
@@ -244,7 +248,7 @@ func generateHttpStreamInfo(c *gin.Context) *HttpPlayStreamInfo {
 func (handler MediaStreamGinHandler) BeforeProcessMediaStream(c *gin.Context) {
 	streamInfo := generateHttpStreamInfo(c)
 	server := GetServer()
-	logger := server.logger
+	logger := streamInfo.logger
 	//身份认证
 	if server.localAuthorizationEnable || server.remoteHttpAuthorizationEnable {
 		authLine := c.GetHeader("Authorization")

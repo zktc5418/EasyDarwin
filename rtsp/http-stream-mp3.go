@@ -73,7 +73,7 @@ func (handler AudioStreamGinHandler) ProcessMp3Stream(c *gin.Context) {
 			if _, err := w.Write(*data); err == nil {
 				return true
 			} else {
-				server.logger.Printf("write audio data error:%v", err)
+				streamInfo.logger.Printf("write audio data error:%v", err)
 				return false
 			}
 		} else {
@@ -178,7 +178,7 @@ func (listener *AudioUdpDataListener) Start() (err error) {
 				parameters = append(parameters, parameter)
 			}
 		}
-		bag := NewCmdRepeatBag(server.ffmpeg, parameters, server.cmdErrorRepeatTime, server.logger, listener.rtspPath, listener.sessionId)
+		bag := NewCmdRepeatBag(server.ffmpeg, parameters, server.cmdErrorRepeatTime, pusher.Logger(), listener.rtspPath, listener.sessionId)
 		listener.cmdBag = bag
 		bag.Run(listener.Stop)
 	}

@@ -218,7 +218,7 @@ var Instance *Server = func() (server *Server) {
 		closeOld:                      rtspFile.Key("close_old").MustBool(false),
 		svcDiscoverMultiAddr:          rtspFile.Key("svc_discover_multiaddr").MustString("239.12.12.12"),
 		svcDiscoverMultiPort:          uint16(rtspFile.Key("svc_discover_multiport").MustUint(1212)),
-		enableMulticast:               rtspFile.Key("enable_multicast").MustBool(true),
+		enableMulticast:               rtspFile.Key("enable_multicast").MustBool(false),
 		multicastAddr:                 rtspFile.Key("multicast_svc_discover_addr").MustString("232.2.2.2:8760"),
 		multicastBindInf:              multicastBindInf,
 		EnableAudioHttpStream:         rtspFile.Key("enable_http_audio_stream").MustBool(true),
@@ -317,7 +317,7 @@ func (server *Server) Start() (err error) {
 							paramsOfThisPath := strings.Split(paramStr, " ")
 							params = append(params[:6], append(paramsOfThisPath, params[6:]...)...)
 						}
-						bag := NewCmdRepeatBag(ffmpeg, params, server.cmdErrorRepeatTime, server.logger, pusher.Path(), pusher.Session.ID)
+						bag := NewCmdRepeatBag(ffmpeg, params, server.cmdErrorRepeatTime, pusher.Logger(), pusher.Path(), pusher.Session.ID)
 						pusher2ffmpegMap[pusher] = bag
 						bag.Run(func() {
 							delete(pusher2ffmpegMap, pusher)
@@ -346,7 +346,7 @@ func (server *Server) Start() (err error) {
 								parameters = append(parameters, parameter)
 							}
 						}
-						bag := NewCmdRepeatBag(server.ffmpeg, parameters, server.cmdErrorRepeatTime, server.logger, pusher.Path(), pusher.Session.ID)
+						bag := NewCmdRepeatBag(server.ffmpeg, parameters, server.cmdErrorRepeatTime, pusher.Logger(), pusher.Path(), pusher.Session.ID)
 						cmdSet.Add(bag)
 						bag.Run(func() {
 							cmdSet.Remove(bag)
@@ -364,7 +364,7 @@ func (server *Server) Start() (err error) {
 									parameters = append(parameters, parameter)
 								}
 							}
-							bag := NewCmdRepeatBag(server.ffmpeg, parameters, server.cmdErrorRepeatTime, server.logger, pusher.Path(), pusher.Session.ID)
+							bag := NewCmdRepeatBag(server.ffmpeg, parameters, server.cmdErrorRepeatTime, pusher.Logger(), pusher.Path(), pusher.Session.ID)
 							cmdSet.Add(bag)
 							bag.Run(func() {
 								cmdSet.Remove(bag)
@@ -382,7 +382,7 @@ func (server *Server) Start() (err error) {
 									parameters = append(parameters, parameter)
 								}
 							}
-							bag := NewCmdRepeatBag(server.ffmpeg, parameters, server.cmdErrorRepeatTime, server.logger, pusher.Path(), pusher.Session.ID)
+							bag := NewCmdRepeatBag(server.ffmpeg, parameters, server.cmdErrorRepeatTime, pusher.Logger(), pusher.Path(), pusher.Session.ID)
 							cmdSet.Add(bag)
 							bag.Run(func() {
 								cmdSet.Remove(bag)

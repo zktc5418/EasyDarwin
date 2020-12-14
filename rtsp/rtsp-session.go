@@ -170,7 +170,7 @@ func NewSession(server *Server, conn net.Conn) *Session {
 		requestHandelChan:             make(chan *Request, 1),
 	}
 
-	session.logger = log.New(os.Stdout, fmt.Sprintf("[%s]", session.ID), log.LstdFlags|log.Lshortfile)
+	session.logger = log.New(os.Stdout, fmt.Sprintf("init-session::[%s]", session.ID), log.LstdFlags|log.Lshortfile)
 	if !utils.Debug {
 		session.logger.SetOutput(utils.GetLogWriter())
 	}
@@ -454,7 +454,7 @@ func (session *Session) handleRequest(req *Request) {
 			res.Status = "Invalid URL"
 			return
 		}
-		if continueProcess := NewWebHookInfo(ON_PUBLISH, session.ID, SESSION_TYPE_PUSHER, TRANS_TYPE_TCP, req.URL, surl.Path, req.Body, session.Conn.RemoteAddr().String()).ExecuteWebHookNotify(); !continueProcess {
+		if continueProcess := NewWebHookInfo(ON_PUBLISH, session.ID, SESSION_TYPE_PUSHER, TRANS_TYPE_TCP, req.URL, surl.Path, req.Body, session.Conn.RemoteAddr().String(), session.logger).ExecuteWebHookNotify(); !continueProcess {
 			res.StatusCode = 500
 			res.Status = "Server not allowed you push stream"
 			return
@@ -517,6 +517,7 @@ func (session *Session) handleRequest(req *Request) {
 				res.Status = "Not Acceptable"
 			}
 		}
+		session.logger = log.New(os.Stdout, fmt.Sprintf("normal-pusher::[ID:%s, path: %s]", session.ID, session.Path), log.LstdFlags|log.Lshortfile)
 	case "DESCRIBE":
 		//拉流
 		session.Type = SESSEION_TYPE_PLAYER
@@ -528,7 +529,7 @@ func (session *Session) handleRequest(req *Request) {
 			res.Status = "Invalid URL"
 			return
 		}
-		if continueProcess := NewWebHookInfo(ON_PLAY, session.ID, SESSEION_TYPE_PLAYER, TRANS_TYPE_TCP, req.URL, url.Path, req.Body, session.Conn.RemoteAddr().String()).ExecuteWebHookNotify(); !continueProcess {
+		if continueProcess := NewWebHookInfo(ON_PLAY, session.ID, SESSEION_TYPE_PLAYER, TRANS_TYPE_TCP, req.URL, url.Path, req.Body, session.Conn.RemoteAddr().String(), session.logger).ExecuteWebHookNotify(); !continueProcess {
 			res.StatusCode = 500
 			res.Status = "Server not allowed you pull stream"
 			return
@@ -562,7 +563,7 @@ func (session *Session) handleRequest(req *Request) {
 		session.ACodec = pusher.ACodec()
 		session.VCodec = pusher.VCodec()
 		session.Conn.timeout = 0
-		session.logger = log.New(os.Stdout, fmt.Sprintf("[player:%s, pusher:%s, path: %s]", session.ID, pusher.ID(), session.Path), log.LstdFlags|log.Lshortfile)
+		session.logger = log.New(os.Stdout, fmt.Sprintf("player::[ID:%s, pusher:%s, path: %s]", session.ID, pusher.ID(), session.Path), log.LstdFlags|log.Lshortfile)
 		res.SetBody(session.Pusher.SDPRaw())
 	case "SETUP":
 		ts := req.Header["Transport"]

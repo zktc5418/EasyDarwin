@@ -14,7 +14,7 @@ import (
 )
 
 type MulticastServer struct {
-	*SessionLogger
+	SessionLogger
 
 	connCache    *ttlcache.Cache
 	pusherCache  *ttlcache.Cache
@@ -27,10 +27,8 @@ func InitializeMulticastServer() (mserver *MulticastServer, err error) {
 	server := GetServer()
 	mserver = &MulticastServer{
 		stopped: false,
-		SessionLogger: &SessionLogger{
-			logger: log.New(os.Stdout, fmt.Sprintf("multicastServer[%s]", server.multicastAddr), log.LstdFlags|log.Lshortfile),
-		},
 	}
+	mserver.logger = log.New(os.Stdout, fmt.Sprintf("multicastRtspServer::[%s]", server.multicastAddr), log.LstdFlags|log.Lshortfile)
 	if !server.enableMulticast {
 		return
 	}
@@ -135,12 +133,12 @@ func (mserver *MulticastServer) getMulticastConnectionFromCache(multicastAddress
 	udpConnCache, success := mserver.connCache.Get(multicastAddress)
 	if !success {
 		var udpAddr *net.UDPAddr
-		udpAddr, err = net.ResolveUDPAddr("udp", multicastAddress)
+		udpAddr, err = net.ResolveUDPAddr("udp4", multicastAddress)
 		if err != nil {
 			mserver.logger.Print("get multicast address error", err)
 			return
 		}
-		udpConn, err = net.DialUDP("udp", nil, udpAddr)
+		udpConn, err = net.DialUDP("udp4", nil, udpAddr)
 		mserver.connCache.SetWithTTL(multicastAddress, udpConn, time.Duration(30)*time.Second)
 	} else {
 		udpConn = udpConnCache.(*net.UDPConn)

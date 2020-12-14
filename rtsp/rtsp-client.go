@@ -94,7 +94,7 @@ func NewRTSPClient(server *Server, rawUrl string, sendOptionMillis int64, agent 
 		debugLogEnable:       GetServer().debugLogEnable,
 		multicastBoardTimes:  -1,
 	}
-	client.logger = log.New(os.Stdout, fmt.Sprintf("[%s]", client.ID), log.LstdFlags|log.Lshortfile)
+	client.logger = log.New(os.Stdout, fmt.Sprintf("rtsp-client-server-pusher::[ID:%s, path:%s]", client.ID, url.Path), log.LstdFlags|log.Lshortfile)
 	if !utils.Debug {
 		client.logger.SetOutput(utils.GetLogWriter())
 	}

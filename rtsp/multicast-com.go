@@ -106,7 +106,7 @@ type MulticastClient struct {
 func StartMulticastListen(pusher *Pusher, multiInfo *MulticastCommunicateInfo) (multiConn *MulticastClient, err error) {
 	server := GetServer()
 	multiConn = &MulticastClient{
-		SessionLogger: SessionLogger{log.New(os.Stdout, "[RTSPServer]", log.LstdFlags|log.Lshortfile)},
+		SessionLogger: SessionLogger{log.New(os.Stdout, fmt.Sprintf("multicast-client-pusher::[ID:%s, path:%s]", multiInfo.SourceSessionId, multiInfo.Path), log.LstdFlags|log.Lshortfile)},
 		Server:        server,
 		Pusher:        pusher,
 		multiInfo:     multiInfo,
