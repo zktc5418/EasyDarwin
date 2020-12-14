@@ -3,7 +3,7 @@ package rtsp
 import (
 	"crypto/md5"
 	"fmt"
-	"github.com/ReneKroon/ttlcache"
+	"github.com/ReneKroon/ttlcache/v2"
 	"github.com/bruce-qin/EasyGoLib/utils"
 	"github.com/gin-gonic/gin"
 	"github.com/go-playground/validator/v10"
@@ -227,7 +227,7 @@ func generateHttpStreamInfo(c *gin.Context) *HttpPlayStreamInfo {
 		if server.localAuthorizationEnable || server.remoteHttpAuthorizationEnable {
 			var nonce, token string
 			if token, _ = c.Cookie(cookieName); token != "" {
-				if cacheNonce, exist := tokenNonceCache.Get(token); exist {
+				if cacheNonce, cacheErr := tokenNonceCache.Get(token); cacheErr == nil {
 					nonce = cacheNonce.(string)
 				}
 			} else {

@@ -5,7 +5,7 @@ go 1.14
 require (
 	github.com/MeloQi/service v0.0.0-20191030061151-7762127fe623
 	github.com/MeloQi/sessions v0.0.0-20191030032128-1c51e5f867b9
-	github.com/ReneKroon/ttlcache v1.7.0
+	github.com/ReneKroon/ttlcache/v2 v2.1.0
 	github.com/StackExchange/wmi v0.0.0-20190523213315-cbe66965904d // indirect
 	github.com/bruce-qin/EasyGoLib v1.0.1
 	github.com/common-nighthawk/go-figure v0.0.0-20200609044655-c4b36f998cf2
@@ -28,6 +28,7 @@ require (
 	github.com/jinzhu/gorm v1.9.16
 	github.com/jonboulle/clockwork v0.1.0 // indirect
 	github.com/json-iterator/go v1.1.10 // indirect
+	github.com/leodido/go-urn v1.2.1 // indirect
 	github.com/lestrrat-go/file-rotatelogs v2.4.0+incompatible // indirect
 	github.com/lestrrat-go/strftime v1.0.3 // indirect
 	github.com/mattn/go-sqlite3 v2.0.3+incompatible // indirect
@@ -46,7 +47,7 @@ require (
 	github.com/ugorji/go v1.2.1 // indirect
 	golang.org/x/crypto v0.0.0-20201208171446-5f87f3452ae9 // indirect
 	golang.org/x/net v0.0.0-20201209123823-ac852fbbde11
-	golang.org/x/sys v0.0.0-20201211002650-1f0c578a6b29 // indirect
+	golang.org/x/sys v0.0.0-20201211090839-8ad439b19e0f // indirect
 	google.golang.org/protobuf v1.25.0 // indirect
 	gopkg.in/ini.v1 v1.56.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect

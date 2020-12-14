@@ -10,7 +10,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/ReneKroon/ttlcache"
+	"github.com/ReneKroon/ttlcache/v2"
 )
 
 type MulticastServer struct {
@@ -130,12 +130,12 @@ func (mserver *MulticastServer) SendMulticastCommandData(multiCommand *Multicast
 }
 
 func (mserver *MulticastServer) getMulticastConnectionFromCache(multicastAddress string) (udpConn *net.UDPConn, err error) {
-	udpConnCache, success := mserver.connCache.Get(multicastAddress)
-	if !success {
+	udpConnCache, cacheErr := mserver.connCache.Get(multicastAddress)
+	if cacheErr != nil {
 		var udpAddr *net.UDPAddr
 		udpAddr, err = net.ResolveUDPAddr("udp4", multicastAddress)
 		if err != nil {
-			mserver.logger.Print("get multicast address error", err)
+			mserver.logger.Print("get multicast address cacheErr", err)
 			return
 		}
 		udpConn, err = net.DialUDP("udp4", nil, udpAddr)
