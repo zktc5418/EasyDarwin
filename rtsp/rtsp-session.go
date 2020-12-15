@@ -296,7 +296,8 @@ func (session *Session) Start() {
 				}
 			default:
 				session.logger.Printf("unknow rtp pack type, %v", channel)
-				continue
+				session.logger.Printf("error rtp pack data:%x", append(append([]byte{0x24, buf1[0]}, buf2...), rtpBytes...))
+				return
 			}
 			session.InBytes += rtpLen + 4
 			session.rtpPackHandelChan <- pack
@@ -320,7 +321,8 @@ func (session *Session) Start() {
 					if len(line) == 0 {
 						req := NewRequest(reqBuf.String(), session.logger)
 						if req == nil {
-							break
+							session.logger.Printf("error rtsp command data:%x", reqBuf.Bytes())
+							return
 						}
 						session.InBytes += reqBuf.Len()
 						contentLen := req.GetContentLength()

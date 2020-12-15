@@ -468,7 +468,9 @@ func (server *Server) Stop() {
 		server.TCPListener = nil
 	}
 	server.pushers = &sync.Map{}
-
+	if server.enableMulticast {
+		server.mserver.stopped = true
+	}
 	close(server.addPusherCh)
 	close(server.removePusherCh)
 }
