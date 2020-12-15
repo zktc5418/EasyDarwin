@@ -21,7 +21,7 @@ type MulticastServer struct {
 	conn                 *ipv4.PacketConn
 	multiCmdAddr         *net.UDPAddr
 	stopped              bool
-	multicastCommandAddr string
+	multicastCommandConn *net.UDPConn
 	multicastRtpChan     chan *multicastRtpPack
 	multicastCmdChan     chan *MulticastCommand
 }
@@ -42,7 +42,7 @@ func InitializeMulticastServer() (mserver *MulticastServer, err error) {
 	if !server.enableMulticast {
 		return
 	}
-	addr, err := net.ResolveUDPAddr("udp", server.multicastAddr)
+	addr, err := net.ResolveUDPAddr("udp4", server.multicastAddr)
 	if err != nil {
 		return
 	}
@@ -54,7 +54,11 @@ func InitializeMulticastServer() (mserver *MulticastServer, err error) {
 	mserver.conn = conn
 	mserver.connCache = ttlcache.NewCache()
 	mserver.pusherCache = ttlcache.NewCache()
-	mserver.multicastCommandAddr = server.multicastAddr
+	udpConn, err := net.DialUDP("udp4", nil, addr)
+	if err != nil {
+		return
+	}
+	mserver.multicastCommandConn = udpConn
 	mserver.pusherCache.SetExpirationCallback(func(path string, pusher interface{}) {
 		storedPusher := server.GetPusher(path)
 		if storedPusher != nil {
@@ -135,13 +139,7 @@ func InitializeMulticastServer() (mserver *MulticastServer, err error) {
 				if err != nil {
 					mserver.logger.Printf("json serialize error：%v \n", err)
 				}
-
-				conn, err := mserver.getMulticastConnectionFromCache(mserver.multicastCommandAddr)
-				if err != nil {
-					mserver.logger.Println("send multicast data error :", err)
-					return
-				}
-				_, err = conn.Write(bytes)
+				_, err = mserver.multicastCommandConn.Write(bytes)
 				if err != nil {
 					mserver.logger.Println("multicast server send MulticastCommand pack error", err)
 				}
