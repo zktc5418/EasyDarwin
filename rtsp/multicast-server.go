@@ -16,17 +16,27 @@ import (
 type MulticastServer struct {
 	SessionLogger
 
-	connCache    *ttlcache.Cache
-	pusherCache  *ttlcache.Cache
-	conn         *ipv4.PacketConn
-	multiCmdAddr *net.UDPAddr
-	stopped      bool
+	connCache            *ttlcache.Cache
+	pusherCache          *ttlcache.Cache
+	conn                 *ipv4.PacketConn
+	multiCmdAddr         *net.UDPAddr
+	stopped              bool
+	multicastCommandAddr string
+	multicastRtpChan     chan *multicastRtpPack
+	multicastCmdChan     chan *MulticastCommand
+}
+
+type multicastRtpPack struct {
+	pack             *RTPPack
+	multicastRtpAddr string
 }
 
 func InitializeMulticastServer() (mserver *MulticastServer, err error) {
 	server := GetServer()
 	mserver = &MulticastServer{
-		stopped: false,
+		stopped:          false,
+		multicastRtpChan: make(chan *multicastRtpPack, 512),
+		multicastCmdChan: make(chan *MulticastCommand, 512),
 	}
 	mserver.logger = log.New(os.Stdout, fmt.Sprintf("multicastRtspServer::[%s]", server.multicastAddr), log.LstdFlags|log.Lshortfile)
 	if !server.enableMulticast {
@@ -44,6 +54,7 @@ func InitializeMulticastServer() (mserver *MulticastServer, err error) {
 	mserver.conn = conn
 	mserver.connCache = ttlcache.NewCache()
 	mserver.pusherCache = ttlcache.NewCache()
+	mserver.multicastCommandAddr = server.multicastAddr
 	mserver.pusherCache.SetExpirationCallback(func(path string, pusher interface{}) {
 		storedPusher := server.GetPusher(path)
 		if storedPusher != nil {
@@ -106,27 +117,42 @@ func InitializeMulticastServer() (mserver *MulticastServer, err error) {
 			}
 		}
 	}()
+	go func() {
+		for !mserver.stopped {
+			select {
+			case multicastRtpPack := <-mserver.multicastRtpChan:
+				udpConn, err := mserver.getMulticastConnectionFromCache(multicastRtpPack.multicastRtpAddr)
+				if err != nil {
+					mserver.logger.Print("send rtppack error, address:", multicastRtpPack.multicastRtpAddr, err)
+					return
+				}
+				_, err = udpConn.Write(multicastRtpPack.pack.Buffer.Bytes())
+				if err != nil {
+					mserver.logger.Print("send rtppack error, address:", multicastRtpPack.multicastRtpAddr, err)
+				}
+			case multiCommand := <-mserver.multicastCmdChan:
+				bytes, err := json.Marshal(multiCommand)
+				if err != nil {
+					mserver.logger.Printf("json serialize error：%v \n", err)
+				}
+
+				conn, err := mserver.getMulticastConnectionFromCache(mserver.multicastCommandAddr)
+				if err != nil {
+					mserver.logger.Println("send multicast data error :", err)
+					return
+				}
+				_, err = conn.Write(bytes)
+				if err != nil {
+					mserver.logger.Println("multicast server send MulticastCommand pack error", err)
+				}
+			}
+		}
+	}()
 	return
 }
 
 func (mserver *MulticastServer) SendMulticastCommandData(multiCommand *MulticastCommand) {
-	//if !mserver.Server.enableMulticast {
-	//    return
-	//}
-	bytes, err := json.Marshal(multiCommand)
-	if err != nil {
-		mserver.logger.Printf("json serialize error：%v \n", err)
-	}
-
-	conn, err := mserver.getMulticastConnectionFromCache(GetServer().multicastAddr)
-	if err != nil {
-		mserver.logger.Println("send multicast data error :", err)
-		return
-	}
-	_, err = conn.Write(bytes)
-	if err != nil {
-		mserver.logger.Println("multicast server send MulticastCommand pack error", err)
-	}
+	mserver.multicastCmdChan <- multiCommand
 }
 
 func (mserver *MulticastServer) getMulticastConnectionFromCache(multicastAddress string) (udpConn *net.UDPConn, err error) {
@@ -147,9 +173,6 @@ func (mserver *MulticastServer) getMulticastConnectionFromCache(multicastAddress
 }
 
 func (mserver *MulticastServer) SendMulticastRtpPack(pack *RTPPack, multiInfo *MulticastCommunicateInfo) {
-	//if !mserver.Server.enableMulticast {
-	//    return
-	//}
 	var multicastAddress string
 	switch pack.Type {
 	case RTP_TYPE_AUDIO:
@@ -161,13 +184,9 @@ func (mserver *MulticastServer) SendMulticastRtpPack(pack *RTPPack, multiInfo *M
 	case RTP_TYPE_VIDEOCONTROL:
 		multicastAddress = fmt.Sprint(multiInfo.CtlVideoRtpMultiAddress, ":", multiInfo.CtlVideoRtpPort)
 	}
-	udpConn, err := mserver.getMulticastConnectionFromCache(multicastAddress)
-	if err != nil {
-		mserver.logger.Print("send rtppack error, address:", multicastAddress, err)
-		return
+	mserver.multicastRtpChan <- &multicastRtpPack{
+		pack:             pack,
+		multicastRtpAddr: multicastAddress,
 	}
-	_, err = udpConn.Write(pack.Buffer.Bytes())
-	if err != nil {
-		mserver.logger.Print("send rtppack error, address:", multicastAddress, err)
-	}
+
 }
