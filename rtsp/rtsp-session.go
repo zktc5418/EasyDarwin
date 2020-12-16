@@ -6,7 +6,6 @@ import (
 	"crypto/md5"
 	"encoding/binary"
 	"fmt"
-	"io"
 	"log"
 	"net"
 	"net/url"
@@ -14,7 +13,6 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/bruce-qin/EasyGoLib/utils"
@@ -32,6 +30,29 @@ type SessionType int
 const (
 	SESSION_TYPE_PUSHER  SessionType = 1
 	SESSEION_TYPE_PLAYER SessionType = 2
+)
+
+type rtspTCPPackFlag []byte
+
+var (
+	//rtp package
+	rtpPackFlag   byte   = 0x24
+	maxRtpPackLen uint16 = 2048
+	//rtsp CMD:: DESCRIBE, SETUP, TEARDOWN, PLAY, PAUSE, OPTIONS, ANNOUNCE, RECORD
+	describePackFlag     rtspTCPPackFlag = []byte("DESCRIBE")
+	announcePackFlag     rtspTCPPackFlag = []byte("ANNOUNCE")
+	getParameterPackFlag rtspTCPPackFlag = []byte("GET_PARAMETER")
+	optionsPackFlag      rtspTCPPackFlag = []byte("OPTIONS")
+	pausePackFlag        rtspTCPPackFlag = []byte("PAUSE")
+	playPackFlag         rtspTCPPackFlag = []byte("PLAY")
+	recordPackFlag       rtspTCPPackFlag = []byte("RECORD")
+	redirectPackFlag     rtspTCPPackFlag = []byte("REDIRECT")
+	setupPackFlag        rtspTCPPackFlag = []byte("SETUP")
+	setParameterPackFlag rtspTCPPackFlag = []byte("SET_PARAMETER")
+	teardownPackFlag     rtspTCPPackFlag = []byte("TEARDOWN")
+	dataPackFlag         rtspTCPPackFlag = []byte("DATA")
+	//rtsp cmd package end flag
+	rtspHeaderEndFlag = []byte("\r\n\r\n")
 )
 
 func (st SessionType) String() string {
@@ -88,11 +109,11 @@ const UDP_BUF_SIZE = 1048576
 
 type Session struct {
 	SessionLogger
-	ID        string
-	Server    *Server
-	Conn      *RichConn
-	connRW    *bufio.ReadWriter
-	connWLock sync.RWMutex
+	ID     string
+	Server *Server
+	Conn   *net.TCPConn
+	//connRW    *bufio.ReadWriter
+	//connWLock sync.RWMutex
 	Type      SessionType
 	TransType TransType
 	Path      string
@@ -144,15 +165,15 @@ func (session *Session) String() string {
 	return fmt.Sprintf("session[%v][%v][%s][%s][%s]", session.Type, session.TransType, session.Path, session.ID, session.Conn.RemoteAddr().String())
 }
 
-func NewSession(server *Server, conn net.Conn) *Session {
-	networkBuffer := server.networkBuffer
-	timeoutMillis := server.rtspTimeoutMillisecond
-	timeoutTCPConn := &RichConn{conn, time.Duration(timeoutMillis) * time.Millisecond}
+func NewSession(server *Server, conn *net.TCPConn) *Session {
+	//networkBuffer := server.networkBuffer
+	//timeoutMillis := server.rtspTimeoutMillisecond
+	//timeoutTCPConn := &RichConn{conn, time.Duration(timeoutMillis) * time.Millisecond}
 	session := &Session{
-		ID:                            shortid.MustGenerate(),
-		Server:                        server,
-		Conn:                          timeoutTCPConn,
-		connRW:                        bufio.NewReadWriter(bufio.NewReaderSize(timeoutTCPConn, networkBuffer), bufio.NewWriterSize(timeoutTCPConn, networkBuffer)),
+		ID:     shortid.MustGenerate(),
+		Server: server,
+		Conn:   conn,
+		//connRW:                        bufio.NewReadWriter(bufio.NewReaderSize(timeoutTCPConn, networkBuffer), bufio.NewWriterSize(timeoutTCPConn, networkBuffer)),
 		StartAt:                       time.Now(),
 		Timeout:                       server.rtspTimeoutMillisecond,
 		localAuthorizationEnable:      server.localAuthorizationEnable,
@@ -188,8 +209,8 @@ func (session *Session) Stop() {
 		h()
 	}
 	if session.Conn != nil {
-		session.connRW.Flush()
-		session.Conn.Close()
+		//session.connRW.Flush()
+		_ = session.Conn.Close()
 		session.Conn = nil
 	}
 	if session.UDPClient != nil {
@@ -233,119 +254,181 @@ func (session *Session) Start() {
 			session.logger.Printf("session running error:%v", err)
 		}
 	}()
-	buf1 := make([]byte, 1)
-	buf2 := make([]byte, 2)
-	timer := time.Unix(0, 0)
+	//128k
+	buf := make([]byte, 1<<17)
 	go session.startRtpHandler()
 	go session.startRequestHandler()
-	for !session.Stoped {
-		if _, err := io.ReadFull(session.connRW, buf1); err != nil {
-			if session.Path != "" {
-				session.logger.Println("stop ", session.Type, ":", session, "; path: ", session.Path, "; error info:", err)
+	scanner := bufio.NewScanner(bufio.NewReaderSize(session.Conn, session.Server.networkBuffer))
+	//
+	scanner.Buffer(buf, 1<<20)
+	scanner.Split(func(data []byte, atEOF bool) (advance int, token []byte, err error) {
+		rtpIdx := -1
+		if session.TransType == TRANS_TYPE_TCP && session.Type == SESSION_TYPE_PUSHER {
+			//tcp transport and pusher read rtp pack
+			if session.aRTPChannel != -1 {
+				if aIdx := bytes.Index(data, []byte{rtpPackFlag, byte(session.aRTPChannel)}); aIdx != -1 {
+					rtpIdx = aIdx
+				}
 			}
-			return
+			if session.aRTPControlChannel != -1 && rtpIdx != 0 {
+				if aCIdx := bytes.Index(data, []byte{rtpPackFlag, byte(session.aRTPControlChannel)}); aCIdx != -1 && aCIdx < rtpIdx {
+					rtpIdx = aCIdx
+				}
+			}
+			if session.vRTPChannel != -1 && rtpIdx != 0 {
+				if vIdx := bytes.Index(data, []byte{rtpPackFlag, byte(session.vRTPChannel)}); vIdx != -1 && vIdx < rtpIdx {
+					rtpIdx = vIdx
+				}
+			}
+			if session.vRTPControlChannel != -1 && rtpIdx != 0 {
+				if vCIdx := bytes.Index(data, []byte{rtpPackFlag, byte(session.vRTPControlChannel)}); vCIdx != -1 && vCIdx < rtpIdx {
+					rtpIdx = vCIdx
+				}
+			}
 		}
-		if buf1[0] == 0x24 { //rtp data
-			if _, err := io.ReadFull(session.connRW, buf1); err != nil {
-				session.logger.Println("stop ", session.Type, ":", session, "; path: ", session.Path, "; error info:", err)
-				return
+
+		rtspCmdIdx := -1
+		rtspCmdHeaderEndIdx := -1
+		if rtpIdx != 0 {
+			rtspCmdHeaderEndIdx = bytes.Index(data, rtspHeaderEndFlag)
+			if rtspCmdHeaderEndIdx != -1 {
+				if rtspCmdIdx = bytes.Index(data, optionsPackFlag); rtspCmdIdx != -1 {
+					//rtsp OPTIONS
+				} else if rtspCmdIdx = bytes.Index(data, describePackFlag); rtspCmdIdx != -1 {
+					//rtsp DESCRIBE
+				} else if rtspCmdIdx = bytes.Index(data, announcePackFlag); rtspCmdIdx != -1 {
+					//rtsp ANNOUNCE
+				} else if rtspCmdIdx = bytes.Index(data, setupPackFlag); rtspCmdIdx != -1 {
+					//rtsp SETUP
+				} else if rtspCmdIdx = bytes.Index(data, playPackFlag); rtspCmdIdx != -1 {
+					//rtsp PLAY
+				} else if rtspCmdIdx = bytes.Index(data, teardownPackFlag); rtspCmdIdx != -1 {
+					//rtsp TEARDOWN
+				} else if rtspCmdIdx = bytes.Index(data, pausePackFlag); rtspCmdIdx != -1 {
+					//rtsp PAUSE
+				} else if rtspCmdIdx = bytes.Index(data, recordPackFlag); rtspCmdIdx != -1 {
+					//rtsp RECORD
+				} else if rtspCmdIdx = bytes.Index(data, redirectPackFlag); rtspCmdIdx != -1 {
+					//rtsp REDIRECT
+				} else if rtspCmdIdx = bytes.Index(data, setParameterPackFlag); rtspCmdIdx != -1 {
+					//rtsp SET_PARAMETER
+				} else if rtspCmdIdx = bytes.Index(data, dataPackFlag); rtspCmdIdx != -1 {
+					//rtsp DATA
+				} else if rtspCmdIdx = bytes.Index(data, getParameterPackFlag); rtspCmdIdx != -1 {
+					//rtsp GET_PARAMETER
+				}
 			}
-			if _, err := io.ReadFull(session.connRW, buf2); err != nil {
-				session.logger.Println("stop ", session.Type, ":", session, "; path: ", session.Path, "; error info:", err)
-				return
+		}
+
+		if rtpIdx != -1 && (rtpIdx < rtspCmdIdx || rtspCmdIdx == -1) {
+			//only rtp package
+			if len(data) > rtpIdx+4 {
+				rtpLen := binary.BigEndian.Uint16(data[rtpIdx+2 : rtpIdx+4])
+				if rtpEndIdx := rtpIdx + int(rtpLen) + 4; rtpLen < maxRtpPackLen && rtpEndIdx <= len(data) {
+					return rtpEndIdx, data[rtpIdx:rtpEndIdx], nil
+				} else if rtpLen > 2048 {
+					//maybe error rtp data
+					return rtpIdx + 4, nil, nil
+				}
 			}
-			channel := int(buf1[0])
-			rtpLen := int(binary.BigEndian.Uint16(buf2))
-			rtpBytes := make([]byte, rtpLen)
-			if _, err := io.ReadFull(session.connRW, rtpBytes); err != nil {
-				session.logger.Println("stop ", session.Type, ":", session, "; path: ", session.Path, "; error info:", err)
-				return
-			}
-			rtpBuf := bytes.NewBuffer(rtpBytes)
-			var pack *RTPPack
-			switch channel {
-			case session.aRTPChannel:
-				pack = &RTPPack{
-					Type:   RTP_TYPE_AUDIO,
-					Buffer: rtpBuf,
-				}
-				elapsed := time.Now().Sub(timer)
-				if elapsed >= 30*time.Second {
-					session.logger.Println("Recv an audio RTP package")
-					timer = time.Now()
-				}
-			case session.aRTPControlChannel:
-				pack = &RTPPack{
-					Type:   RTP_TYPE_AUDIOCONTROL,
-					Buffer: rtpBuf,
-				}
-			case session.vRTPChannel:
-				pack = &RTPPack{
-					Type:   RTP_TYPE_VIDEO,
-					Buffer: rtpBuf,
-				}
-				elapsed := time.Now().Sub(timer)
-				if elapsed >= 30*time.Second {
-					session.logger.Println("Recv an video RTP package")
-					timer = time.Now()
-				}
-			case session.vRTPControlChannel:
-				pack = &RTPPack{
-					Type:   RTP_TYPE_VIDEOCONTROL,
-					Buffer: rtpBuf,
-				}
-			default:
-				session.logger.Printf("unknow rtp pack type, %v", channel)
-				session.logger.Printf("error rtp pack data:%x", append(append([]byte{0x24, buf1[0]}, buf2...), rtpBytes...))
-				return
-			}
-			session.InBytes += rtpLen + 4
-			session.rtpPackHandelChan <- pack
-			//for _, h := range session.RTPHandles {
-			//	h(pack)
-			//}
-		} else { // rtsp cmd
-			reqBuf := bytes.NewBuffer(nil)
-			reqBuf.Write(buf1)
-			for !session.Stoped {
-				if line, isPrefix, err := session.connRW.ReadLine(); err != nil {
-					if session.Path != "" {
-						session.logger.Println("rtsp protocol transform error, stop ", session.Type, ":", session, "; path: ", session.Path, "; error info:", err)
-					}
-					return
+			//need more data
+		} else if rtspCmdIdx != -1 && (rtspCmdIdx < rtpIdx || rtpIdx == -1) {
+			//only rtsp cmd package
+			rtspRawHeader := data[rtspCmdIdx : rtspCmdHeaderEndIdx+1]
+			rtspRequest := NewRequest(string(rtspRawHeader), session.logger)
+			if rtspRequest == nil {
+				//error rtsp cmd request
+				return rtspCmdHeaderEndIdx + 1, nil, fmt.Errorf("error rtsp request")
+			} else if rtspRequest.GetContentLength() > 0 {
+				//rtsp cmd request have body
+				if reqEndIdx := rtspCmdHeaderEndIdx + 4 + rtspRequest.GetContentLength(); reqEndIdx <= len(data) {
+					//have enough body
+					return reqEndIdx, data[rtspCmdIdx:reqEndIdx], nil
 				} else {
-					reqBuf.Write(line)
-					if !isPrefix {
-						reqBuf.WriteString("\r\n")
-					}
-					if len(line) == 0 {
-						req := NewRequest(reqBuf.String(), session.logger)
-						if req == nil {
-							session.logger.Printf("error rtsp command data:%x", reqBuf.Bytes())
-							return
-						}
-						session.InBytes += reqBuf.Len()
-						contentLen := req.GetContentLength()
-						session.InBytes += contentLen
-						if contentLen > 0 {
-							bodyBuf := make([]byte, contentLen)
-							if n, err := io.ReadFull(session.connRW, bodyBuf); err != nil {
-								session.logger.Println("rtsp protocol transform error:", err)
-								return
-							} else if n != contentLen {
-								session.logger.Printf("rtsp protocol transform error, read rtsp request body failed, expect size[%d], got size[%d]", contentLen, n)
-								return
-							}
-							req.Body = string(bodyBuf)
-						}
-						session.requestHandelChan <- req
-						//session.handleRequest(req)
-						break
-					}
+					//need more data
+					return 0, nil, nil
 				}
+			} else {
+				return rtspCmdHeaderEndIdx + 1, rtspRawHeader, nil
 			}
+		}
+		return 0, nil, nil
+	})
+	for !session.Stoped && scanner.Scan() {
+		data := scanner.Bytes()
+		session.InBytes += len(data)
+		if data[0] == 0x24 {
+			//rtp over tcp data
+			session.processTcpRawRtpData(data, len(data))
+		} else {
+			//rtsp command data
+			rawReq := string(data)
+			rtspCmds := strings.Split(strings.TrimSpace(rawReq), "\r\n\r\n")
+			if len(rtspCmds) == 0 {
+				session.logger.Printf("error rtsp command data:%x", data)
+				continue
+			}
+			header := rtspCmds[0]
+			req := NewRequest(header, session.logger)
+			if req == nil {
+				session.logger.Printf("error rtsp command data:%x", data)
+				continue
+			}
+			if len(rtspCmds) > 1 {
+				req.Body = strings.TrimSpace(rtspCmds[1])
+			}
+			session.requestHandelChan <- req
 		}
 	}
+	if err := scanner.Err(); err != nil {
+		session.logger.Printf("rtsp read error:%v", err)
+	}
+}
+
+func (session *Session) processTcpRawRtpData(tcpRtpData []byte, readLen int) {
+	channel := int(tcpRtpData[1])
+	rtpLen := int(binary.BigEndian.Uint16(tcpRtpData[2:4]))
+	if rtpLen+4 != readLen {
+		//rtp data length not match
+		session.logger.Printf("rtp data read error, length not match, read length:%d, real rtp length:%d", readLen-4, rtpLen)
+		return
+	}
+	if !(channel == session.aRTPChannel || channel == session.aRTPControlChannel || channel == session.vRTPChannel || channel == session.vRTPControlChannel) {
+		//rtp data channel not match
+		session.logger.Printf("rtp data read error, channel not match, read channel:%d", channel)
+		return
+	}
+	rtpData := tcpRtpData[4:readLen]
+	rtpBuf := bytes.NewBuffer(rtpData)
+	var pack *RTPPack
+	switch channel {
+	case session.aRTPChannel:
+		pack = &RTPPack{
+			Type:   RTP_TYPE_AUDIO,
+			Buffer: rtpBuf,
+		}
+	case session.aRTPControlChannel:
+		pack = &RTPPack{
+			Type:   RTP_TYPE_AUDIOCONTROL,
+			Buffer: rtpBuf,
+		}
+	case session.vRTPChannel:
+		pack = &RTPPack{
+			Type:   RTP_TYPE_VIDEO,
+			Buffer: rtpBuf,
+		}
+	case session.vRTPControlChannel:
+		pack = &RTPPack{
+			Type:   RTP_TYPE_VIDEOCONTROL,
+			Buffer: rtpBuf,
+		}
+	default:
+		session.logger.Printf("unknow rtp pack type, %v", channel)
+		session.logger.Printf("error rtp pack data:%x", tcpRtpData)
+		return
+	}
+	session.InBytes += readLen
+	session.rtpPackHandelChan <- pack
 }
 
 func (session *Session) handleRequest(req *Request) {
@@ -362,10 +445,7 @@ func (session *Session) handleRequest(req *Request) {
 		}
 		session.logger.Printf(">>>\n%s", res)
 		outBytes := []byte(res.String())
-		session.connWLock.Lock()
-		session.connRW.Write(outBytes)
-		session.connRW.Flush()
-		session.connWLock.Unlock()
+		_, _ = session.Conn.Write(outBytes)
 		session.OutBytes += len(outBytes)
 		switch req.Method {
 		case "PLAY", "RECORD":
@@ -562,7 +642,6 @@ func (session *Session) handleRequest(req *Request) {
 		session.VControl = pusher.VControl()
 		session.ACodec = pusher.ACodec()
 		session.VCodec = pusher.VCodec()
-		session.Conn.timeout = 0
 		session.logger = log.New(os.Stdout, fmt.Sprintf("player::[ID:%s, pusher:%s, path: %s]", session.ID, pusher.ID(), session.Path), log.LstdFlags|log.Lshortfile)
 		res.SetBody(session.Pusher.SDPRaw())
 	case "SETUP":
@@ -644,7 +723,6 @@ func (session *Session) handleRequest(req *Request) {
 		} else if udpMatchs := mudp.FindStringSubmatch(ts); udpMatchs != nil {
 			session.TransType = TRANS_TYPE_UDP
 			// no need for tcp timeout.
-			session.Conn.timeout = 0
 			if session.Type == SESSEION_TYPE_PLAYER && session.UDPClient == nil {
 				session.UDPClient = &UDPClient{
 					Session: session,
@@ -758,61 +836,24 @@ func (session *Session) SendRTP(pack *RTPPack) (err error) {
 		err = session.UDPClient.SendRTP(pack)
 		return
 	}
+	var channel byte
+
 	switch pack.Type {
 	case RTP_TYPE_AUDIO:
-		bufChannel := make([]byte, 2)
-		bufChannel[0] = 0x24
-		bufChannel[1] = byte(session.aRTPChannel)
-		session.connWLock.Lock()
-		session.connRW.Write(bufChannel)
-		bufLen := make([]byte, 2)
-		binary.BigEndian.PutUint16(bufLen, uint16(pack.Buffer.Len()))
-		session.connRW.Write(bufLen)
-		session.connRW.Write(pack.Buffer.Bytes())
-		session.connRW.Flush()
-		session.connWLock.Unlock()
-		session.OutBytes += pack.Buffer.Len() + 4
+		channel = byte(session.aRTPChannel)
 	case RTP_TYPE_AUDIOCONTROL:
-		bufChannel := make([]byte, 2)
-		bufChannel[0] = 0x24
-		bufChannel[1] = byte(session.aRTPControlChannel)
-		session.connWLock.Lock()
-		session.connRW.Write(bufChannel)
-		bufLen := make([]byte, 2)
-		binary.BigEndian.PutUint16(bufLen, uint16(pack.Buffer.Len()))
-		session.connRW.Write(bufLen)
-		session.connRW.Write(pack.Buffer.Bytes())
-		session.connRW.Flush()
-		session.connWLock.Unlock()
-		session.OutBytes += pack.Buffer.Len() + 4
+		channel = byte(session.aRTPControlChannel)
 	case RTP_TYPE_VIDEO:
-		bufChannel := make([]byte, 2)
-		bufChannel[0] = 0x24
-		bufChannel[1] = byte(session.vRTPChannel)
-		session.connWLock.Lock()
-		session.connRW.Write(bufChannel)
-		bufLen := make([]byte, 2)
-		binary.BigEndian.PutUint16(bufLen, uint16(pack.Buffer.Len()))
-		session.connRW.Write(bufLen)
-		session.connRW.Write(pack.Buffer.Bytes())
-		session.connRW.Flush()
-		session.connWLock.Unlock()
-		session.OutBytes += pack.Buffer.Len() + 4
+		channel = byte(session.vRTPChannel)
 	case RTP_TYPE_VIDEOCONTROL:
-		bufChannel := make([]byte, 2)
-		bufChannel[0] = 0x24
-		bufChannel[1] = byte(session.vRTPControlChannel)
-		session.connWLock.Lock()
-		session.connRW.Write(bufChannel)
-		bufLen := make([]byte, 2)
-		binary.BigEndian.PutUint16(bufLen, uint16(pack.Buffer.Len()))
-		session.connRW.Write(bufLen)
-		session.connRW.Write(pack.Buffer.Bytes())
-		session.connRW.Flush()
-		session.connWLock.Unlock()
-		session.OutBytes += pack.Buffer.Len() + 4
+		channel = byte(session.vRTPControlChannel)
 	default:
 		err = fmt.Errorf("session tcp send rtp got unkown pack type[%v]", pack.Type)
+		return
 	}
+	rtpLen := uint16(pack.Buffer.Len())
+	rtpTcpData := append([]byte{0x24, channel, byte(rtpLen >> 8), byte(rtpLen)}, pack.Buffer.Bytes()...)
+	_, err = session.Conn.Write(rtpTcpData)
+	session.OutBytes += len(rtpTcpData)
 	return
 }

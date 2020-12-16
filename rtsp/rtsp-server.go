@@ -436,23 +436,23 @@ func (server *Server) Start() (err error) {
 	server.Stoped = false
 	server.TCPListener = listener
 	logger.Println("rtsp server start on", server.TCPPort)
-	networkBuffer := server.networkBuffer
+	//networkBuffer := server.networkBuffer
 	for !server.Stoped {
 		var (
-			conn net.Conn
+			conn *net.TCPConn
 		)
-		if conn, err = server.TCPListener.Accept(); err != nil {
+		if conn, err = server.TCPListener.AcceptTCP(); err != nil {
 			logger.Println(err)
 			continue
 		}
-		if tcpConn, ok := conn.(*net.TCPConn); ok {
-			if err = tcpConn.SetReadBuffer(networkBuffer); err != nil {
-				logger.Printf("rtsp server conn set read buffer error, %v", err)
-			}
-			if err = tcpConn.SetWriteBuffer(networkBuffer); err != nil {
-				logger.Printf("rtsp server conn set write buffer error, %v", err)
-			}
-		}
+		_ = conn.SetNoDelay(true)
+		//_ = conn.SetKeepAlive(true)
+		//if err = conn.SetReadBuffer(networkBuffer); err != nil {
+		//	logger.Printf("rtsp server conn set read buffer error, %v", err)
+		//}
+		//if err = conn.SetWriteBuffer(networkBuffer); err != nil {
+		//	logger.Printf("rtsp server conn set write buffer error, %v", err)
+		//}
 		session := NewSession(server, conn)
 		go session.Start()
 	}
