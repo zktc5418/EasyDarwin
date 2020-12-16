@@ -320,6 +320,10 @@ func (session *Session) Start() {
 			}
 		}
 
+		if atEOF {
+			session.logger.Printf("session at EOF, path:[%s]", session.Path)
+		}
+
 		if rtpIdx != -1 && (rtpIdx < rtspCmdIdx || rtspCmdIdx == -1) {
 			//only rtp package
 			if len(data) > rtpIdx+4 {

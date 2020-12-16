@@ -446,7 +446,7 @@ func (server *Server) Start() (err error) {
 			continue
 		}
 		_ = conn.SetNoDelay(true)
-		//_ = conn.SetKeepAlive(true)
+		_ = conn.SetKeepAlive(true)
 		//if err = conn.SetReadBuffer(networkBuffer); err != nil {
 		//	logger.Printf("rtsp server conn set read buffer error, %v", err)
 		//}
@@ -525,12 +525,12 @@ func (server *Server) TryAttachToPusher(session *Session) (int, *Pusher) {
 func (server *Server) RemovePusher(pusher *Pusher) {
 	removed := false
 	if _pusher, ok := server.pushers.Load(pusher.Path()); ok && pusher.ID() == _pusher.(*Pusher).ID() {
-		server.pushersCacheQueue <- true
 		server.pushers.Delete(pusher.Path())
 		pusher.Logger().Printf("%v end, pusher[%v]\n", pusher, _pusher.(*Pusher).Path())
 		removed = true
 	}
 	if removed {
+		server.pushersCacheQueue <- true
 		server.removePusherCh <- pusher
 	}
 }
