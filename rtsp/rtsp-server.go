@@ -50,12 +50,12 @@ type Server struct {
 	HttpVideoStreamPort           uint16
 	NginxRtmpHlsMapDir            string
 	closeOld                      bool
-	svcDiscoverMultiAddr          string
-	svcDiscoverMultiPort          uint16
-	enableMulticast               bool
-	multicastAddr                 string
-	multicastBindInf              *net.Interface
-	mserver                       *MulticastServer
+	//svcDiscoverMultiAddr          string
+	//svcDiscoverMultiPort          uint16
+	enableMulticast  bool
+	multicastAddr    string
+	multicastBindInf *net.Interface
+	mserver          *MulticastServer
 	// /live1/stream123   key::live1 执行命令map
 	// /live2/stream123	  key::live2 执行命令map
 	// 环境变量：EASYDARWIN_PUSH_FFMPEG_MAP_CMD_key=
@@ -216,24 +216,24 @@ var Instance *Server = func() (server *Server) {
 		remoteHttpAuthorizationUrl:    rtspFile.Key("remote_http_authorization_url").Value(),
 		authorizationType:             AuthorizationType(rtspFile.Key("authorization_type").Value()),
 		closeOld:                      rtspFile.Key("close_old").MustBool(false),
-		svcDiscoverMultiAddr:          rtspFile.Key("svc_discover_multiaddr").MustString("239.12.12.12"),
-		svcDiscoverMultiPort:          uint16(rtspFile.Key("svc_discover_multiport").MustUint(1212)),
-		enableMulticast:               rtspFile.Key("enable_multicast").MustBool(false),
-		multicastAddr:                 rtspFile.Key("multicast_svc_discover_addr").MustString("232.2.2.2:8760"),
-		multicastBindInf:              multicastBindInf,
-		EnableAudioHttpStream:         rtspFile.Key("enable_http_audio_stream").MustBool(true),
-		HttpAudioStreamPort:           uint16(rtspFile.Key("http_audio_stream_port").MustUint(8088)),
-		EnableVideoHttpStream:         rtspFile.Key("enable_http_video_stream").MustBool(false),
-		HttpVideoStreamPort:           uint16(rtspFile.Key("http_video_stream_port").MustUint(8099)),
-		NginxRtmpHlsMapDir:            rtspFile.Key("nginx_rtmp_hls_dir_map").MustString("record"),
-		allPushCmd:                    allCmds,
-		pushCmdDirMap:                 pushCmdMap,
-		otherPushCmd:                  otherCmds,
-		cmdErrorRepeatTime:            envRepeatTime,
-		onPlay:                        onPlay,
-		onStop:                        onStop,
-		onPublish:                     onPublish,
-		onTeardown:                    onTeardown,
+		//svcDiscoverMultiAddr:          rtspFile.Key("svc_discover_multiaddr").MustString("239.12.12.12"),
+		//svcDiscoverMultiPort:          uint16(rtspFile.Key("svc_discover_multiport").MustUint(1212)),
+		enableMulticast:       rtspFile.Key("enable_multicast").MustBool(true),
+		multicastAddr:         rtspFile.Key("multicast_svc_discover_addr").MustString("232.2.2.2:8760"),
+		multicastBindInf:      multicastBindInf,
+		EnableAudioHttpStream: rtspFile.Key("enable_http_audio_stream").MustBool(true),
+		HttpAudioStreamPort:   uint16(rtspFile.Key("http_audio_stream_port").MustUint(8088)),
+		EnableVideoHttpStream: rtspFile.Key("enable_http_video_stream").MustBool(false),
+		HttpVideoStreamPort:   uint16(rtspFile.Key("http_video_stream_port").MustUint(8099)),
+		NginxRtmpHlsMapDir:    rtspFile.Key("nginx_rtmp_hls_dir_map").MustString("record"),
+		allPushCmd:            allCmds,
+		pushCmdDirMap:         pushCmdMap,
+		otherPushCmd:          otherCmds,
+		cmdErrorRepeatTime:    envRepeatTime,
+		onPlay:                onPlay,
+		onStop:                onStop,
+		onPublish:             onPublish,
+		onTeardown:            onTeardown,
 	}
 	if !server.localAuthorizationEnable && server.remoteHttpAuthorizationEnable && server.remoteHttpAuthorizationUrl == "" {
 		logger.logger.Panicf("server configed remoteHttpAuthorizationEnable, but not set remoteHttpAuthorizationUrl")

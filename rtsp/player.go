@@ -67,6 +67,12 @@ func (player *Player) QueueRTP(pack *RTPPack) *Player {
 }
 
 func (player *Player) Start() {
+	defer func() {
+		if err := recover(); err != nil {
+			player.logger.Printf("player send rtp error:%v", err)
+			player.Stop()
+		}
+	}()
 	logger := player.logger
 	timer := time.Unix(0, 0)
 	for !player.Stoped {
