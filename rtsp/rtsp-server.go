@@ -266,13 +266,12 @@ func (server *Server) Start() (err error) {
 		addr     *net.TCPAddr
 		listener *net.TCPListener
 	)
-	if addr, err = net.ResolveTCPAddr("tcp", fmt.Sprintf(":%d", server.TCPPort)); err != nil {
+	if addr, err = net.ResolveTCPAddr("tcp4", fmt.Sprintf(":%d", server.TCPPort)); err != nil {
 		return
 	}
-	if listener, err = net.ListenTCP("tcp", addr); err != nil {
+	if listener, err = net.ListenTCP("tcp4", addr); err != nil {
 		return
 	}
-
 	localRecord := server.localRecord             //utils.Conf().Section("rtsp").Key("save_stream_to_local").MustInt(0)
 	ffmpeg := server.ffmpeg                       //utils.Conf().Section("rtsp").Key("ffmpeg_path").MustString("")
 	m3u8_dir_path := server.m3u8DirPath           //utils.Conf().Section("rtsp").Key("m3u8_dir_path").MustString("")

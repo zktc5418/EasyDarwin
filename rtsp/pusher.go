@@ -531,6 +531,7 @@ func (pusher *Pusher) Start() {
 
 func (pusher *Pusher) Stop() {
 	defer func() {
+		pusher.ClearPlayer()
 		if err := recover(); err != nil {
 			pusher.Session.logger.Printf("stop pusher error:%v", err)
 		}
@@ -541,11 +542,11 @@ func (pusher *Pusher) Stop() {
 	close(pusher.queue)
 	if pusher.Session != nil {
 		pusher.Session.Stop()
-		return
+		//return
 	}
 	if pusher.MulticastClient != nil {
 		pusher.MulticastClient.Stop()
-		return
+		//return
 	}
 	if pusher.udpHttpAudioStreamListener != nil {
 		pusher.udpHttpAudioStreamListener.Stop()
@@ -553,7 +554,9 @@ func (pusher *Pusher) Stop() {
 	//if pusher.udpHttpVideoStreamListener != nil {
 	//	pusher.udpHttpVideoStreamListener.Stop()
 	//}
-	pusher.RTSPClient.Stop()
+	if pusher.RTSPClient != nil {
+		pusher.RTSPClient.Stop()
+	}
 }
 
 func (pusher *Pusher) BroadcastRTP(pack *RTPPack) *Pusher {
@@ -612,11 +615,11 @@ func (pusher *Pusher) ClearPlayer() {
 	// copy a new map to avoid deadlock
 	players := pusher.players
 	pusher.players = &sync.Map{}
-	pusher.cacheQueue <- true
 	players.Range(func(key, value interface{}) bool {
 		value.(*Player).Stop()
 		return true
 	})
+	pusher.cacheQueue <- true
 }
 
 func (pusher *Pusher) shouldSequenceStart(rtp *RTPInfo) bool {

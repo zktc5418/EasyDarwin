@@ -111,7 +111,7 @@ type Session struct {
 	SessionLogger
 	ID     string
 	Server *Server
-	Conn   *net.TCPConn
+	Conn   *RichConn
 	//connRW    *bufio.ReadWriter
 	//connWLock sync.RWMutex
 	Type      SessionType
@@ -169,10 +169,17 @@ func NewSession(server *Server, conn *net.TCPConn) *Session {
 	//networkBuffer := server.networkBuffer
 	//timeoutMillis := server.rtspTimeoutMillisecond
 	//timeoutTCPConn := &RichConn{conn, time.Duration(timeoutMillis) * time.Millisecond}
+	var Timeout time.Duration
+	if server.rtspTimeoutMillisecond > 0 {
+		Timeout = time.Duration(server.rtspTimeoutMillisecond) * time.Millisecond
+	} else {
+		Timeout = time.Duration(10) * time.Millisecond
+	}
 	session := &Session{
-		ID:     shortid.MustGenerate(),
-		Server: server,
-		Conn:   conn,
+		ID:      shortid.MustGenerate(),
+		Server:  server,
+		Conn:    &RichConn{conn, Timeout},
+		Timeout: Timeout,
 		//connRW:                        bufio.NewReadWriter(bufio.NewReaderSize(timeoutTCPConn, networkBuffer), bufio.NewWriterSize(timeoutTCPConn, networkBuffer)),
 		StartAt:                       time.Now(),
 		localAuthorizationEnable:      server.localAuthorizationEnable,
@@ -189,11 +196,7 @@ func NewSession(server *Server, conn *net.TCPConn) *Session {
 		rtpPackHandelChan:             make(chan *RTPPack, 10),
 		requestHandelChan:             make(chan *Request, 1),
 	}
-	if server.rtspTimeoutMillisecond > 0 {
-		session.Timeout = time.Duration(server.rtspTimeoutMillisecond) * time.Millisecond
-	} else {
-		session.Timeout = time.Duration(10) * time.Millisecond
-	}
+
 	session.logger = log.New(os.Stdout, fmt.Sprintf("init-session::[%s]", session.ID), log.LstdFlags|log.Lshortfile)
 	if !utils.Debug {
 		session.logger.SetOutput(utils.GetLogWriter())
@@ -388,23 +391,18 @@ func (session *Session) Start() {
 		}
 	}
 	if err := scanner.Err(); err != nil {
-		session.logger.Printf("rtsp read error:%v", err)
+		session.logger.Printf("rtsp session read error:%v", err)
 	}
 }
 
 func (session *Session) processTcpRawRtpData(tcpRtpData []byte, readLen int) {
 	channel := int(tcpRtpData[1])
-	rtpLen := int(binary.BigEndian.Uint16(tcpRtpData[2:4]))
-	if rtpLen+4 != readLen {
-		//rtp data length not match
-		session.logger.Printf("rtp data read error, length not match, read length:%d, real rtp length:%d", readLen-4, rtpLen)
-		return
-	}
-	if !(channel == session.aRTPChannel || channel == session.aRTPControlChannel || channel == session.vRTPChannel || channel == session.vRTPControlChannel) {
-		//rtp data channel not match
-		session.logger.Printf("rtp data read error, channel not match, read channel:%d", channel)
-		return
-	}
+	//rtpLen := int(binary.BigEndian.Uint16(tcpRtpData[2:4]))
+	//if rtpLen+4 != readLen {
+	//	//rtp data length not match
+	//	session.logger.Printf("rtp data read error, length not match, read length:%d, real rtp length:%d", readLen-4, rtpLen)
+	//	return
+	//}
 	rtpData := tcpRtpData[4:readLen]
 	rtpBuf := bytes.NewBuffer(rtpData)
 	var pack *RTPPack
@@ -860,9 +858,6 @@ func (session *Session) SendRTP(pack *RTPPack) (err error) {
 	}
 	rtpLen := uint16(pack.Buffer.Len())
 	rtpTcpData := append([]byte{0x24, channel, byte(rtpLen >> 8), byte(rtpLen)}, pack.Buffer.Bytes()...)
-	if err = session.Conn.SetWriteDeadline(time.Now().Add(session.Timeout)); err != nil {
-		return
-	}
 	_, err = session.Conn.Write(rtpTcpData)
 	session.OutBytes += len(rtpTcpData)
 	return
