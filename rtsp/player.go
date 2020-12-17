@@ -21,7 +21,7 @@ func NewPlayer(session *Session, pusher *Pusher) (player *Player) {
 		Session: session,
 		Pusher:  pusher,
 		//cond:                 sync.NewCond(&sync.Mutex{}),
-		queue:                make(chan *RTPPack, MAX_GOP_CACHE_LEN),
+		queue:                make(chan *RTPPack, 128*1024),
 		queueLimit:           server.playerQueueLimit,
 		dropPacketWhenPaused: server.dropPacketWhenPaused,
 		paused:               false,
@@ -67,28 +67,18 @@ func (player *Player) QueueRTP(pack *RTPPack) *Player {
 }
 
 func (player *Player) Start() {
+	defer player.Stop()
 	defer func() {
 		if err := recover(); err != nil {
 			player.logger.Printf("player send rtp error:%v", err)
-			player.Stop()
 		}
 	}()
 	logger := player.logger
 	timer := time.Unix(0, 0)
 	for !player.Stoped {
 		var pack *RTPPack
-		pack, ok := <-player.queue
-		//player.cond.L.Lock()
-		//if len(player.queue) == 0 {
-		//	player.cond.Wait()
-		//}
-		//if len(player.queue) > 0 {
-		//	pack = player.queue[0]
-		//	player.queue = player.queue[1:]
-		//}
-		//queueLen := len(player.queue)
-		//player.cond.L.Unlock()
-		if player.paused || !ok {
+		pack = <-player.queue
+		if player.paused {
 			continue
 		}
 		if pack == nil {
@@ -98,7 +88,8 @@ func (player *Player) Start() {
 			continue
 		}
 		if err := player.SendRTP(pack); err != nil {
-			logger.Println(err)
+			logger.Printf("write rtp pack error:%v, stop player", err)
+			return
 		}
 		elapsed := time.Now().Sub(timer)
 		if player.debugLogEnable && elapsed >= 30*time.Second {

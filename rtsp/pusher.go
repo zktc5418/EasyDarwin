@@ -497,7 +497,7 @@ func (pusher *Pusher) Start() {
 	}()
 	for !pusher.Stoped() {
 		var pack *RTPPack
-		pack, ok := <-pusher.queue
+		pack = <-pusher.queue
 		//pusher.cond.L.Lock()
 		//if len(pusher.queue) == 0 {
 		//	pusher.cond.Wait()
@@ -507,7 +507,7 @@ func (pusher *Pusher) Start() {
 		//	pusher.queue = pusher.queue[1:]
 		//}
 		//pusher.cond.L.Unlock()
-		if pack == nil || !ok {
+		if pack == nil {
 			if !pusher.Stoped() {
 				logger.Printf("pusher not stoped, but queue take out nil pack")
 			}

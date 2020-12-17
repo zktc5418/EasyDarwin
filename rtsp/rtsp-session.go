@@ -137,7 +137,7 @@ type Session struct {
 	InBytes  int
 	OutBytes int
 	StartAt  time.Time
-	Timeout  int
+	Timeout  time.Duration
 
 	Stoped bool
 
@@ -175,7 +175,6 @@ func NewSession(server *Server, conn *net.TCPConn) *Session {
 		Conn:   conn,
 		//connRW:                        bufio.NewReadWriter(bufio.NewReaderSize(timeoutTCPConn, networkBuffer), bufio.NewWriterSize(timeoutTCPConn, networkBuffer)),
 		StartAt:                       time.Now(),
-		Timeout:                       server.rtspTimeoutMillisecond,
 		localAuthorizationEnable:      server.localAuthorizationEnable,
 		remoteHttpAuthorizationEnable: server.remoteHttpAuthorizationEnable,
 		authorizationType:             server.authorizationType,
@@ -190,7 +189,11 @@ func NewSession(server *Server, conn *net.TCPConn) *Session {
 		rtpPackHandelChan:             make(chan *RTPPack, 10),
 		requestHandelChan:             make(chan *Request, 1),
 	}
-
+	if server.rtspTimeoutMillisecond > 0 {
+		session.Timeout = time.Duration(server.rtspTimeoutMillisecond) * time.Millisecond
+	} else {
+		session.Timeout = time.Duration(10) * time.Millisecond
+	}
 	session.logger = log.New(os.Stdout, fmt.Sprintf("init-session::[%s]", session.ID), log.LstdFlags|log.Lshortfile)
 	if !utils.Debug {
 		session.logger.SetOutput(utils.GetLogWriter())
@@ -226,7 +229,7 @@ func (session *Session) startRtpHandler() {
 		}
 	}()
 	for !session.Stoped {
-		if pack, ok := <-session.rtpPackHandelChan; ok {
+		if pack := <-session.rtpPackHandelChan; pack != nil {
 			for _, h := range session.RTPHandles {
 				h(pack)
 			}
@@ -241,7 +244,7 @@ func (session *Session) startRequestHandler() {
 		}
 	}()
 	for !session.Stoped {
-		if req, ok := <-session.requestHandelChan; ok {
+		if req := <-session.requestHandelChan; req != nil {
 			session.handleRequest(req)
 		}
 	}
@@ -857,6 +860,9 @@ func (session *Session) SendRTP(pack *RTPPack) (err error) {
 	}
 	rtpLen := uint16(pack.Buffer.Len())
 	rtpTcpData := append([]byte{0x24, channel, byte(rtpLen >> 8), byte(rtpLen)}, pack.Buffer.Bytes()...)
+	if err = session.Conn.SetWriteDeadline(time.Now().Add(session.Timeout)); err != nil {
+		return
+	}
 	_, err = session.Conn.Write(rtpTcpData)
 	session.OutBytes += len(rtpTcpData)
 	return

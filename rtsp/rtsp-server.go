@@ -448,6 +448,7 @@ func (server *Server) Start() (err error) {
 		_ = conn.SetNoDelay(true)
 		_ = conn.SetKeepAlive(true)
 		_ = conn.SetKeepAlivePeriod(time.Duration(10) * time.Second)
+		_ = conn.SetWriteBuffer(server.networkBuffer)
 		//if err = conn.SetReadBuffer(networkBuffer); err != nil {
 		//	logger.Printf("rtsp server conn set read buffer error, %v", err)
 		//}
