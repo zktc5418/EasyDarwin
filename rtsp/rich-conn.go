@@ -25,7 +25,7 @@ func (conn *RichConn) Write(b []byte) (n int, err error) {
 	if conn.writeTimeout > 0 {
 		_ = conn.Conn.SetWriteDeadline(time.Now().Add(conn.writeTimeout))
 	} else {
-		_ = conn.Conn.SetWriteDeadline(time.Now().Add(time.Duration(10) * time.Second))
+		_ = conn.Conn.SetWriteDeadline(time.Now().Add(time.Duration(20) * time.Second))
 	}
 	return conn.Conn.Write(b)
 }

@@ -210,8 +210,8 @@ var Instance *Server = func() (server *Server) {
 		debugLogEnable:                rtspFile.Key("debug_log_enable").MustBool(false),
 		playerQueueLimit:              rtspFile.Key("player_queue_limit").MustInt(0),
 		dropPacketWhenPaused:          rtspFile.Key("drop_packet_when_paused").MustBool(false),
-		rtspWriteTimeoutMillisecond:   rtspFile.Key("write_timeout").MustInt(10000),
-		rtspReadTimeoutMillisecond:    rtspFile.Key("read_timeout").MustInt(60000),
+		rtspWriteTimeoutMillisecond:   rtspFile.Key("write_timeout").MustInt(20000),
+		rtspReadTimeoutMillisecond:    rtspFile.Key("read_timeout").MustInt(40000),
 		streamNotExistHoldMillisecond: time.Duration(rtspFile.Key("stream_notexist_wait_second").MustInt(10)) * time.Second,
 		localAuthorizationEnable:      rtspFile.Key("local_authorization_enable").MustBool(false),
 		remoteHttpAuthorizationEnable: rtspFile.Key("remote_http_authorization_enable").MustBool(false),
@@ -449,7 +449,7 @@ func (server *Server) Start() (err error) {
 		_ = conn.SetNoDelay(true)
 		_ = conn.SetKeepAlive(true)
 		_ = conn.SetKeepAlivePeriod(time.Duration(10) * time.Second)
-		_ = conn.SetWriteBuffer(server.networkBuffer)
+		//_ = conn.SetWriteBuffer(server.networkBuffer)
 		//if err = conn.SetReadBuffer(networkBuffer); err != nil {
 		//	logger.Printf("rtsp server conn set read buffer error, %v", err)
 		//}
