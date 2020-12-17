@@ -137,7 +137,6 @@ type Session struct {
 	InBytes  int
 	OutBytes int
 	StartAt  time.Time
-	Timeout  time.Duration
 
 	Stoped bool
 
@@ -167,19 +166,24 @@ func (session *Session) String() string {
 
 func NewSession(server *Server, conn *net.TCPConn) *Session {
 	//networkBuffer := server.networkBuffer
-	//timeoutMillis := server.rtspTimeoutMillisecond
+	//timeoutMillis := server.rtspWriteTimeoutMillisecond
 	//timeoutTCPConn := &RichConn{conn, time.Duration(timeoutMillis) * time.Millisecond}
-	var Timeout time.Duration
-	if server.rtspTimeoutMillisecond > 0 {
-		Timeout = time.Duration(server.rtspTimeoutMillisecond) * time.Millisecond
+	var writeTimeout time.Duration
+	if server.rtspWriteTimeoutMillisecond > 0 {
+		writeTimeout = time.Duration(server.rtspWriteTimeoutMillisecond) * time.Millisecond
 	} else {
-		Timeout = time.Duration(10) * time.Millisecond
+		writeTimeout = time.Duration(10) * time.Second
+	}
+	var readTimeout time.Duration
+	if server.rtspWriteTimeoutMillisecond > 0 {
+		readTimeout = time.Duration(server.rtspReadTimeoutMillisecond) * time.Millisecond
+	} else {
+		readTimeout = time.Duration(60) * time.Second
 	}
 	session := &Session{
-		ID:      shortid.MustGenerate(),
-		Server:  server,
-		Conn:    &RichConn{conn, Timeout},
-		Timeout: Timeout,
+		ID:     shortid.MustGenerate(),
+		Server: server,
+		Conn:   &RichConn{conn, readTimeout, writeTimeout},
 		//connRW:                        bufio.NewReadWriter(bufio.NewReaderSize(timeoutTCPConn, networkBuffer), bufio.NewWriterSize(timeoutTCPConn, networkBuffer)),
 		StartAt:                       time.Now(),
 		localAuthorizationEnable:      server.localAuthorizationEnable,

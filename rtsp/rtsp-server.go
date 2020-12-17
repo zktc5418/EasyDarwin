@@ -38,7 +38,8 @@ type Server struct {
 	debugLogEnable                bool
 	playerQueueLimit              int
 	dropPacketWhenPaused          bool
-	rtspTimeoutMillisecond        int
+	rtspWriteTimeoutMillisecond   int
+	rtspReadTimeoutMillisecond    int
 	streamNotExistHoldMillisecond time.Duration
 	localAuthorizationEnable      bool
 	remoteHttpAuthorizationEnable bool
@@ -209,7 +210,8 @@ var Instance *Server = func() (server *Server) {
 		debugLogEnable:                rtspFile.Key("debug_log_enable").MustBool(false),
 		playerQueueLimit:              rtspFile.Key("player_queue_limit").MustInt(0),
 		dropPacketWhenPaused:          rtspFile.Key("drop_packet_when_paused").MustBool(false),
-		rtspTimeoutMillisecond:        rtspFile.Key("timeout").MustInt(0),
+		rtspWriteTimeoutMillisecond:   rtspFile.Key("write_timeout").MustInt(10000),
+		rtspReadTimeoutMillisecond:    rtspFile.Key("read_timeout").MustInt(60000),
 		streamNotExistHoldMillisecond: time.Duration(rtspFile.Key("stream_notexist_wait_second").MustInt(10)) * time.Second,
 		localAuthorizationEnable:      rtspFile.Key("local_authorization_enable").MustBool(false),
 		remoteHttpAuthorizationEnable: rtspFile.Key("remote_http_authorization_enable").MustBool(false),

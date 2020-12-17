@@ -212,12 +212,13 @@ func (client *RTSPClient) requestStream(timeout time.Duration) (err error) {
 		// handle error
 		return err
 	}
-
-	networkBuffer := GetServer().networkBuffer
+	server := GetServer()
+	networkBuffer := server.networkBuffer
 
 	timeoutConn := RichConn{
 		conn,
 		timeout,
+		time.Duration(server.rtspWriteTimeoutMillisecond) * time.Millisecond,
 	}
 	client.Conn = &timeoutConn
 	client.connRW = bufio.NewReadWriter(bufio.NewReaderSize(&timeoutConn, networkBuffer), bufio.NewWriterSize(&timeoutConn, networkBuffer))
@@ -298,7 +299,7 @@ func (client *RTSPClient) requestStream(timeout time.Duration) (err error) {
 					return err
 				}
 				headers["Transport"] = fmt.Sprintf("RTP/AVP/UDP;unicast;client_port=%d-%d", client.UDPServer.VPort, client.UDPServer.VControlPort)
-				client.Conn.timeout = 0 //	UDP ignore timeout
+				client.Conn.readTimeout = 0 //	UDP ignore timeout
 			}
 			if session != "" {
 				headers["Session"] = session
@@ -331,7 +332,7 @@ func (client *RTSPClient) requestStream(timeout time.Duration) (err error) {
 					return err
 				}
 				headers["Transport"] = fmt.Sprintf("RTP/AVP/UDP;unicast;client_port=%d-%d", client.UDPServer.APort, client.UDPServer.AControlPort)
-				client.Conn.timeout = 0 //	UDP ignore timeout
+				client.Conn.readTimeout = 0 //	UDP ignore timeout
 			}
 			if session != "" {
 				headers["Session"] = session
@@ -501,7 +502,7 @@ func (client *RTSPClient) startStream() {
 
 func (client *RTSPClient) Start(timeout time.Duration) (err error) {
 	if timeout == 0 {
-		timeoutMillis := GetServer().rtspTimeoutMillisecond
+		timeoutMillis := GetServer().rtspWriteTimeoutMillisecond
 		timeout = time.Duration(timeoutMillis) * time.Millisecond
 	}
 	err = client.requestStream(timeout)
