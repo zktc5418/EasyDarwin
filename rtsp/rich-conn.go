@@ -7,13 +7,13 @@ import (
 
 type RichConn struct {
 	net.Conn
-	readTimeout  time.Duration
-	writeTimeout time.Duration
+	ReadTimeout  time.Duration
+	WriteTimeout time.Duration
 }
 
 func (conn *RichConn) Read(b []byte) (n int, err error) {
-	if conn.readTimeout > 0 {
-		_ = conn.Conn.SetReadDeadline(time.Now().Add(conn.readTimeout))
+	if conn.ReadTimeout > 0 {
+		_ = conn.Conn.SetReadDeadline(time.Now().Add(conn.ReadTimeout))
 	} else {
 		var timeout time.Time
 		_ = conn.Conn.SetReadDeadline(timeout)
@@ -22,10 +22,11 @@ func (conn *RichConn) Read(b []byte) (n int, err error) {
 }
 
 func (conn *RichConn) Write(b []byte) (n int, err error) {
-	if conn.writeTimeout > 0 {
-		_ = conn.Conn.SetWriteDeadline(time.Now().Add(conn.writeTimeout))
+	if conn.WriteTimeout > 0 {
+		_ = conn.Conn.SetWriteDeadline(time.Now().Add(conn.WriteTimeout))
 	} else {
-		_ = conn.Conn.SetWriteDeadline(time.Now().Add(time.Duration(20) * time.Second))
+		var timeout time.Time
+		_ = conn.Conn.SetWriteDeadline(timeout)
 	}
 	return conn.Conn.Write(b)
 }

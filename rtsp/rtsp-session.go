@@ -165,21 +165,8 @@ func (session *Session) String() string {
 }
 
 func NewSession(server *Server, conn *net.TCPConn) *Session {
-	//networkBuffer := server.networkBuffer
-	//timeoutMillis := server.rtspWriteTimeoutMillisecond
-	//timeoutTCPConn := &RichConn{conn, time.Duration(timeoutMillis) * time.Millisecond}
-	var writeTimeout time.Duration
-	if server.rtspWriteTimeoutMillisecond > 0 {
-		writeTimeout = time.Duration(server.rtspWriteTimeoutMillisecond) * time.Millisecond
-	} else {
-		writeTimeout = time.Duration(10) * time.Second
-	}
-	var readTimeout time.Duration
-	if server.rtspWriteTimeoutMillisecond > 0 {
-		readTimeout = time.Duration(server.rtspReadTimeoutMillisecond) * time.Millisecond
-	} else {
-		readTimeout = time.Duration(60) * time.Second
-	}
+	writeTimeout := time.Duration(server.rtspWriteTimeoutMillisecond) * time.Millisecond
+	readTimeout := time.Duration(server.rtspReadTimeoutMillisecond) * time.Millisecond
 	session := &Session{
 		ID:     shortid.MustGenerate(),
 		Server: server,
@@ -377,7 +364,7 @@ func (session *Session) Start() {
 		} else {
 			//rtsp command data
 			rawReq := string(data)
-			rtspCmds := strings.Split(strings.TrimSpace(rawReq), "\r\n\r\n")
+			rtspCmds := strings.Split(rawReq, "\r\n\r\n")
 			if len(rtspCmds) == 0 {
 				session.logger.Printf("error rtsp command data:%x", data)
 				continue
@@ -389,7 +376,7 @@ func (session *Session) Start() {
 				continue
 			}
 			if len(rtspCmds) > 1 {
-				req.Body = strings.TrimSpace(rtspCmds[1])
+				req.Body = strings.Join(rtspCmds[1:], "\r\n\r\n")
 			}
 			session.requestHandelChan <- req
 		}
@@ -453,7 +440,7 @@ func (session *Session) handleRequest(req *Request) {
 			res.Status = fmt.Sprintf("Inner Server Error, %v", p)
 		}
 		session.logger.Printf(">>>\n%s", res)
-		outBytes := []byte(res.String())
+		outBytes := res.ByteData()
 		_, _ = session.Conn.Write(outBytes)
 		session.OutBytes += len(outBytes)
 		switch req.Method {
@@ -606,6 +593,7 @@ func (session *Session) handleRequest(req *Request) {
 				res.Status = "Not Acceptable"
 			}
 		}
+		session.Conn.WriteTimeout = 0
 		session.logger = log.New(os.Stdout, fmt.Sprintf("normal-pusher::[ID:%s, path: %s]", session.ID, session.Path), log.LstdFlags|log.Lshortfile)
 	case "DESCRIBE":
 		//拉流
@@ -653,6 +641,7 @@ func (session *Session) handleRequest(req *Request) {
 		session.VCodec = pusher.VCodec()
 		session.logger = log.New(os.Stdout, fmt.Sprintf("player::[ID:%s, pusher:%s, path: %s]", session.ID, pusher.ID(), session.Path), log.LstdFlags|log.Lshortfile)
 		res.SetBody(session.Pusher.SDPRaw())
+		session.Conn.ReadTimeout = 0
 	case "SETUP":
 		ts := req.Header["Transport"]
 		// control字段可能是`stream=1`字样，也可能是rtsp://...字样。即control可能是url的path，也可能是整个url

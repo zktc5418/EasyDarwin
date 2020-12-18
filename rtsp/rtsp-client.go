@@ -299,7 +299,7 @@ func (client *RTSPClient) requestStream(timeout time.Duration) (err error) {
 					return err
 				}
 				headers["Transport"] = fmt.Sprintf("RTP/AVP/UDP;unicast;client_port=%d-%d", client.UDPServer.VPort, client.UDPServer.VControlPort)
-				client.Conn.readTimeout = 0 //	UDP ignore timeout
+				client.Conn.ReadTimeout = 0 //	UDP ignore timeout
 			}
 			if session != "" {
 				headers["Session"] = session
@@ -332,7 +332,7 @@ func (client *RTSPClient) requestStream(timeout time.Duration) (err error) {
 					return err
 				}
 				headers["Transport"] = fmt.Sprintf("RTP/AVP/UDP;unicast;client_port=%d-%d", client.UDPServer.APort, client.UDPServer.AControlPort)
-				client.Conn.readTimeout = 0 //	UDP ignore timeout
+				client.Conn.ReadTimeout = 0 //	UDP ignore timeout
 			}
 			if session != "" {
 				headers["Session"] = session
