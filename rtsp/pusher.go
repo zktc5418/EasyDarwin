@@ -227,7 +227,7 @@ func NewClientPusher(client *RTSPClient) (pusher *Pusher) {
 		playersCache:   make(map[string]*Player),
 		gopCacheEnable: GetServer().gopCacheEnable,
 		gopCache:       make([]*RTPPack, 0),
-		cacheQueue:     make(chan bool, 100),
+		cacheQueue:     make(chan bool, 1),
 		//cond:  sync.NewCond(&sync.Mutex{}),
 		queue: make(chan *RTPPack, MAX_GOP_CACHE_LEN),
 	}
@@ -306,7 +306,7 @@ func NewMulticastPusher(multiInfo *MulticastCommunicateInfo) (pusher *Pusher) {
 		gopCache:       make([]*RTPPack, 0),
 
 		//cond:  sync.NewCond(&sync.Mutex{}),
-		cacheQueue: make(chan bool, 100),
+		cacheQueue: make(chan bool, 1),
 		queue:      make(chan *RTPPack, MAX_GOP_CACHE_LEN),
 	}
 	multicastClient, _ := StartMulticastListen(pusher, multiInfo)
@@ -330,7 +330,7 @@ func NewPusher(session *Session) (pusher *Pusher) {
 		playersCache:   make(map[string]*Player),
 		gopCacheEnable: GetServer().gopCacheEnable,
 		gopCache:       make([]*RTPPack, 0),
-		cacheQueue:     make(chan bool, 100),
+		cacheQueue:     make(chan bool, 1),
 		queue:          make(chan *RTPPack, MAX_GOP_CACHE_LEN),
 	}
 	pusher.bindSession(session)
@@ -587,7 +587,7 @@ func (pusher *Pusher) HasPlayer(player *Player) bool {
 
 func (pusher *Pusher) AddPlayer(player *Player) *Pusher {
 	pusher.players.Store(player.ID, player)
-	pusher.cacheQueue <- true
+	pusher.genPusherRebuildPlayerCacheSingle()
 	go player.Start()
 	logger := player.logger
 	logger.Printf("%v start, pusher[%v]", player, pusher.Path())
@@ -606,9 +606,16 @@ func (pusher *Pusher) AddPlayer(player *Player) *Pusher {
 func (pusher *Pusher) RemovePlayer(player *Player) *Pusher {
 	logger := player.logger
 	pusher.players.Delete(player.ID)
-	pusher.cacheQueue <- true
+	pusher.genPusherRebuildPlayerCacheSingle()
 	logger.Printf("%v end, pusher[%v]\n", player, pusher.Path())
 	return pusher
+}
+
+func (pusher *Pusher) genPusherRebuildPlayerCacheSingle() {
+	select {
+	case pusher.cacheQueue <- true:
+	default:
+	}
 }
 
 func (pusher *Pusher) ClearPlayer() {
@@ -619,7 +626,7 @@ func (pusher *Pusher) ClearPlayer() {
 		value.(*Player).Stop()
 		return true
 	})
-	pusher.cacheQueue <- true
+	pusher.genPusherRebuildPlayerCacheSingle()
 }
 
 func (pusher *Pusher) shouldSequenceStart(rtp *RTPInfo) bool {

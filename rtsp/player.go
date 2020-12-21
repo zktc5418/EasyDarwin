@@ -21,7 +21,7 @@ func NewPlayer(session *Session, pusher *Pusher) (player *Player) {
 		Session: session,
 		Pusher:  pusher,
 		//cond:                 sync.NewCond(&sync.Mutex{}),
-		queue:                make(chan *RTPPack, 128*1024),
+		queue:                make(chan *RTPPack, 1024),
 		queueLimit:           server.playerQueueLimit,
 		dropPacketWhenPaused: server.dropPacketWhenPaused,
 		paused:               false,
@@ -112,7 +112,7 @@ func (player *Player) Pause(paused bool) {
 	//player.cond.L.Lock()
 	if paused && player.dropPacketWhenPaused && len(player.queue) > 0 {
 		close(player.queue)
-		player.queue = make(chan *RTPPack, MAX_GOP_CACHE_LEN)
+		player.queue = make(chan *RTPPack, 1024)
 	}
 	player.paused = paused
 	//player.cond.L.Unlock()

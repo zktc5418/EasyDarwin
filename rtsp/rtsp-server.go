@@ -196,7 +196,7 @@ var Instance *Server = func() (server *Server) {
 		TCPPort:                       rtspFile.Key("port").MustInt(554),
 		pushers:                       &sync.Map{},
 		pushersCache:                  make(map[string]*Pusher),
-		pushersCacheQueue:             make(chan bool, 100),
+		pushersCacheQueue:             make(chan bool, 1),
 		addPusherCh:                   make(chan *Pusher),
 		removePusherCh:                make(chan *Pusher),
 		rtpMinUdpPort:                 uint16(rtpMinPort),
@@ -493,7 +493,7 @@ func (server *Server) AddPusher(pusher *Pusher) bool {
 	if added {
 		go pusher.Start()
 		server.addPusherCh <- pusher
-		server.pushersCacheQueue <- true
+		server.genServerRebuildPusherCacheSingle()
 		if GetServer().EnableAudioHttpStream {
 			pusher.udpHttpAudioStreamListener = NewMp3UdpDataListener(pusher)
 			if err := pusher.udpHttpAudioStreamListener.Start(); err != nil {
@@ -508,6 +508,13 @@ func (server *Server) AddPusher(pusher *Pusher) bool {
 		//}
 	}
 	return added
+}
+
+func (server *Server) genServerRebuildPusherCacheSingle() {
+	select {
+	case server.pushersCacheQueue <- true:
+	default:
+	}
 }
 
 func (server *Server) TryAttachToPusher(session *Session) (int, *Pusher) {
@@ -534,8 +541,8 @@ func (server *Server) RemovePusher(pusher *Pusher) {
 		removed = true
 	}
 	if removed {
-		server.pushersCacheQueue <- true
 		server.removePusherCh <- pusher
+		server.genServerRebuildPusherCacheSingle()
 	}
 }
 
