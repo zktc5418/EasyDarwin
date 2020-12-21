@@ -288,8 +288,12 @@ func (server *Server) Start() (err error) {
 		}
 	}
 	go func() { // save to local.
+		type pusherExecMap struct {
+			lock   *sync.RWMutex
+			cmdSet *hashset.Set
+		}
 		pusher2ffmpegMap := make(map[*Pusher]*CmdRepeatBag)
-		pusher2CmdMap := make(map[*Pusher]*hashset.Set)
+		pusher2CmdMap := make(map[*Pusher]*pusherExecMap)
 		regx, _ := regexp.Compile("[ ]+")
 		if SaveStreamToLocal {
 			logger.Printf("Prepare to save stream to local....")
@@ -329,7 +333,10 @@ func (server *Server) Start() (err error) {
 					}
 				}
 				if pusher.MulticastClient == nil {
-					cmdSet := hashset.New()
+					pusherExecMap := &pusherExecMap{
+						cmdSet: hashset.New(),
+						lock:   &sync.RWMutex{},
+					}
 					path := strings.TrimLeft(pusher.Path(), "/")
 					pathRegx, _ := regexp.Compile("[/]+")
 					dir := "__default__"
@@ -348,9 +355,13 @@ func (server *Server) Start() (err error) {
 							}
 						}
 						bag := NewCmdRepeatBag(server.ffmpeg, parameters, server.cmdErrorRepeatTime, pusher.Logger(), pusher.Path(), pusher.Session.ID)
-						cmdSet.Add(bag)
+						pusherExecMap.lock.Lock()
+						pusherExecMap.cmdSet.Add(bag)
+						pusherExecMap.lock.Unlock()
 						bag.Run(func() {
-							cmdSet.Remove(bag)
+							pusherExecMap.lock.Lock()
+							pusherExecMap.cmdSet.Remove(bag)
+							pusherExecMap.lock.Unlock()
 						})
 					}
 					if cmds := server.pushCmdDirMap[dir]; len(cmds) > 0 {
@@ -366,9 +377,13 @@ func (server *Server) Start() (err error) {
 								}
 							}
 							bag := NewCmdRepeatBag(server.ffmpeg, parameters, server.cmdErrorRepeatTime, pusher.Logger(), pusher.Path(), pusher.Session.ID)
-							cmdSet.Add(bag)
+							pusherExecMap.lock.Lock()
+							pusherExecMap.cmdSet.Add(bag)
+							pusherExecMap.lock.Unlock()
 							bag.Run(func() {
-								cmdSet.Remove(bag)
+								pusherExecMap.lock.Lock()
+								pusherExecMap.cmdSet.Remove(bag)
+								pusherExecMap.lock.Unlock()
 							})
 						}
 					} else if len(server.otherPushCmd) > 0 {
@@ -384,15 +399,19 @@ func (server *Server) Start() (err error) {
 								}
 							}
 							bag := NewCmdRepeatBag(server.ffmpeg, parameters, server.cmdErrorRepeatTime, pusher.Logger(), pusher.Path(), pusher.Session.ID)
-							cmdSet.Add(bag)
+							pusherExecMap.lock.Lock()
+							pusherExecMap.cmdSet.Add(bag)
+							pusherExecMap.lock.Unlock()
 							bag.Run(func() {
-								cmdSet.Remove(bag)
+								pusherExecMap.lock.Lock()
+								pusherExecMap.cmdSet.Remove(bag)
+								pusherExecMap.lock.Unlock()
 							})
 						}
 					}
 
-					if cmdSet.Size() > 0 {
-						pusher2CmdMap[pusher] = cmdSet
+					if pusherExecMap.cmdSet.Size() > 0 {
+						pusher2CmdMap[pusher] = pusherExecMap
 					}
 				}
 			case pusher, removeChnOk = <-server.removePusherCh:
@@ -414,8 +433,8 @@ func (server *Server) Start() (err error) {
 					}
 				}
 				if pusher != nil && pusher.MulticastClient == nil {
-					if bags := pusher2CmdMap[pusher]; bags != nil {
-						for _, bagRaw := range bags.Values() {
+					if execMap := pusher2CmdMap[pusher]; execMap != nil {
+						for _, bagRaw := range execMap.cmdSet.Values() {
 							bag := bagRaw.(*CmdRepeatBag)
 							bag.PushOver4Kill()
 						}
