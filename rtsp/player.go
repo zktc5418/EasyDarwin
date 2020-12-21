@@ -53,7 +53,11 @@ func (player *Player) QueueRTP(pack *RTPPack) *Player {
 		}
 	}()
 	//player.cond.L.Lock()
-	player.queue <- pack
+	select {
+	case player.queue <- pack:
+	default:
+	}
+
 	//if oldLen := len(player.queue); player.queueLimit > 0 && oldLen > player.queueLimit {
 	//	player.queue = player.queue[1:]
 	//	if player.debugLogEnable {

@@ -139,7 +139,11 @@ func (listener *AudioUdpDataListener) Start() (err error) {
 		for !listener.closed {
 			audioData := <-listener.mediaDataChan
 			for key, puller := range listener.pullerMap {
-				puller.mediaData <- audioData
+				select {
+				case puller.mediaData <- audioData:
+				default:
+				}
+
 				if puller.overed {
 					delete(listener.pullerMap, key)
 				}

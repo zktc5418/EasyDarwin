@@ -184,7 +184,7 @@ func NewSession(server *Server, conn *net.TCPConn) *Session {
 		aRTPChannel:                   -1,
 		aRTPControlChannel:            -1,
 		closeOld:                      server.closeOld,
-		rtpPackHandelChan:             make(chan *RTPPack, 10),
+		rtpPackHandelChan:             make(chan *RTPPack, 128),
 		requestHandelChan:             make(chan *Request, 1),
 	}
 
