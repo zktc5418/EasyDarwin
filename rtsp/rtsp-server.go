@@ -332,7 +332,7 @@ func (server *Server) Start() (err error) {
 						logger.Printf("addPusherChan closed")
 					}
 				}
-				if pusher.MulticastClient == nil {
+				if pusher != nil && pusher.MulticastClient == nil {
 					pusherExecMap := &pusherExecMap{
 						cmdSet: hashset.New(),
 						lock:   &sync.RWMutex{},
@@ -423,12 +423,15 @@ func (server *Server) Start() (err error) {
 							logger.Printf("delete ffmpeg from pull stream from pusher[%v]", pusher)
 						}
 					} else {
-						for _, bag := range pusher2ffmpegMap {
-							bag.PusherTerminated = true
-							err2 := bag.Cmd.Process.Kill()
-							logger.Printf("kill  process error:%v", err2)
+						for _pusher, bag := range pusher2ffmpegMap {
+							if server.HasPusher(_pusher) {
+								continue
+							}
+							bag.PushOver4Kill()
+							delete(pusher2ffmpegMap, _pusher)
+							logger.Printf("delete ffmpeg from pull stream from pusher[%v]", _pusher)
 						}
-						pusher2ffmpegMap = make(map[*Pusher]*CmdRepeatBag)
+						//pusher2ffmpegMap = make(map[*Pusher]*CmdRepeatBag)
 						logger.Printf("removePusherChan closed")
 					}
 				}
@@ -439,6 +442,17 @@ func (server *Server) Start() (err error) {
 							bag.PushOver4Kill()
 						}
 						delete(pusher2CmdMap, pusher)
+					}
+				} else if pusher == nil || !removeChnOk {
+					for _pusher, execMap := range pusher2CmdMap {
+						if server.HasPusher(_pusher) {
+							continue
+						}
+						for _, bagRaw := range execMap.cmdSet.Values() {
+							bag := bagRaw.(*CmdRepeatBag)
+							bag.PushOver4Kill()
+						}
+						delete(pusher2CmdMap, _pusher)
 					}
 				}
 			}
@@ -527,6 +541,11 @@ func (server *Server) AddPusher(pusher *Pusher) bool {
 		//}
 	}
 	return added
+}
+
+func (server *Server) HasPusher(pusher *Pusher) bool {
+	_, ok := server.pushers.Load(pusher.Path())
+	return ok
 }
 
 func (server *Server) genServerRebuildPusherCacheSingle() {
