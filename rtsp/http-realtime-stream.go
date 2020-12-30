@@ -15,6 +15,7 @@ import (
 	"os"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -47,7 +48,9 @@ type HttpPlayStreamInfo struct {
 type MediaUdpDataListener struct {
 	cmdBag        *CmdRepeatBag
 	rtspPath      string
-	pullerMap     map[string]*HttpPlayStreamInfo
+	buildCacheCh  chan bool
+	pullerCache   []*HttpPlayStreamInfo
+	pullerMap     *sync.Map
 	closed        bool
 	mediaDataChan chan *[]byte
 	sessionId     string
@@ -82,10 +85,43 @@ func newMediaStreamLocalListener(pusher *Pusher) *MediaUdpDataListener {
 		mediaDataChan: make(chan *[]byte, 512),
 		rtspPath:      pusher.Path(),
 		logger:        pusher.Logger(),
-		pullerMap:     make(map[string]*HttpPlayStreamInfo),
+		buildCacheCh:  make(chan bool, 1),
+		pullerMap:     &sync.Map{},
 		sessionId:     pusher.ID(),
 		pusher:        pusher,
 	}
+}
+
+func (listener *MediaUdpDataListener) AddHttpPuller(streamInfo *HttpPlayStreamInfo) {
+	listener.pullerMap.Store(streamInfo.id, streamInfo)
+	select {
+	case listener.buildCacheCh <- true:
+	default:
+	}
+}
+
+func (listener *MediaUdpDataListener) RemoveHttpPuller(streamInfo *HttpPlayStreamInfo) {
+	listener.pullerMap.Delete(streamInfo.id)
+	select {
+	case listener.buildCacheCh <- true:
+	default:
+	}
+}
+
+func (listener *MediaUdpDataListener) StartRebuildCacheTask() {
+	go func(listener *MediaUdpDataListener) {
+		for !listener.closed {
+			select {
+			case <-listener.buildCacheCh:
+				var pullerCache []*HttpPlayStreamInfo
+				listener.pullerMap.Range(func(key, value interface{}) bool {
+					pullerCache = append(pullerCache, value.(*HttpPlayStreamInfo))
+					return true
+				})
+				listener.pullerCache = pullerCache
+			}
+		}
+	}(listener)
 }
 
 func (listener *MediaUdpDataListener) doMediaStreamLocalListen() (*ipv4.PacketConn, error) {

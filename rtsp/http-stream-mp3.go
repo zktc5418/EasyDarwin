@@ -64,12 +64,17 @@ func (handler AudioStreamGinHandler) ProcessMp3Stream(c *gin.Context) {
 	defer func() {
 		streamInfo.ToRtspWebHookInfo(ON_STOP).ExecuteWebHookNotify()
 		streamInfo.overed = true
-		delete(server.GetPusher(streamInfo.rtspPath).udpHttpAudioStreamListener.pullerMap, streamInfo.id)
+		if puhser := server.GetPusher(streamInfo.rtspPath); puhser != nil {
+			puhser.udpHttpAudioStreamListener.RemoveHttpPuller(streamInfo)
+		}
 	}()
-	server.GetPusher(streamInfo.rtspPath).udpHttpAudioStreamListener.pullerMap[streamInfo.id] = streamInfo
+	server.GetPusher(streamInfo.rtspPath).udpHttpAudioStreamListener.AddHttpPuller(streamInfo)
 	c.Stream(func(w io.Writer) bool {
 		if !streamInfo.overed {
 			data := <-streamInfo.mediaData
+			if data == nil {
+				return true
+			}
 			if _, err := w.Write(*data); err == nil {
 				return true
 			} else {
@@ -80,6 +85,7 @@ func (handler AudioStreamGinHandler) ProcessMp3Stream(c *gin.Context) {
 			return false
 		}
 	})
+	c.AbortWithStatus(200)
 }
 
 func (listener *AudioUdpDataListener) Start() (err error) {
@@ -126,7 +132,7 @@ func (listener *AudioUdpDataListener) Start() (err error) {
 	//向客户端写入数据
 	go func() {
 		defer func() {
-			for _, puller := range listener.pullerMap {
+			for _, puller := range listener.pullerCache {
 				puller.overed = true
 				close(puller.mediaData)
 			}
@@ -138,15 +144,16 @@ func (listener *AudioUdpDataListener) Start() (err error) {
 		}()
 		for !listener.closed {
 			audioData := <-listener.mediaDataChan
-			for key, puller := range listener.pullerMap {
+			for _, puller := range listener.pullerCache {
+				if puller.overed {
+					listener.RemoveHttpPuller(puller)
+					continue
+				}
 				select {
 				case puller.mediaData <- audioData:
 				default:
 				}
 
-				if puller.overed {
-					delete(listener.pullerMap, key)
-				}
 			}
 		}
 	}()
@@ -186,6 +193,7 @@ func (listener *AudioUdpDataListener) Start() (err error) {
 		listener.cmdBag = bag
 		bag.Run(listener.Stop)
 	}
+	listener.StartRebuildCacheTask()
 	return nil
 }
 
