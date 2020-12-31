@@ -794,6 +794,9 @@ func (session *Session) handleRequest(req *Request) {
 			}
 		}
 		res.Header["Transport"] = ts
+		if session.TransType == TRANS_TYPE_UDP {
+			session.Conn.ReadTimeout = 0
+		}
 	case "PLAY":
 		//开始拉流
 		// error status. PLAY without ANNOUNCE or DESCRIBE.

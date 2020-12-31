@@ -53,8 +53,12 @@ func (bag CmdRepeatBag) Run(overErrorTimeCallBack func()) {
 			if pusher := GetServer().GetPusher(bag.pusherPath); pusher != nil && pusher.ID() == bag.sessionId && bag.errorTime < bag.MaxRepeatTime {
 				//错误重试
 				time.Sleep(time.Duration(2) * time.Second)
-				bag.errorTime++
-				bag.Run(overErrorTimeCallBack)
+				if pusher = GetServer().GetPusher(bag.pusherPath); pusher != nil && pusher.ID() == bag.sessionId && bag.errorTime < bag.MaxRepeatTime {
+					bag.errorTime++
+					bag.Run(overErrorTimeCallBack)
+				} else {
+					overErrorTimeCallBack()
+				}
 			} else {
 				//超过错误上限，调用回调函数
 				overErrorTimeCallBack()
