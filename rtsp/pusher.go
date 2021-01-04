@@ -629,7 +629,12 @@ func (pusher *Pusher) ClearPlayer() {
 	pusher.genPusherRebuildPlayerCacheSingle()
 }
 
-func (pusher *Pusher) shouldSequenceStart(rtp *RTPInfo) bool {
+func (pusher *Pusher) shouldSequenceStart(rtp *RTPInfo) (result bool) {
+	defer func() {
+		if err := recover(); err != nil {
+			result = false
+		}
+	}()
 	if strings.EqualFold(pusher.VCodec(), "h264") {
 		var realNALU uint8
 		payloadHeader := rtp.Payload[0] //https://tools.ietf.org/html/rfc6184#section-5.2
