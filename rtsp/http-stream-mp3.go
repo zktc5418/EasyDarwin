@@ -69,18 +69,27 @@ func (handler AudioStreamGinHandler) ProcessMp3Stream(c *gin.Context) {
 		}
 	}()
 	server.GetPusher(streamInfo.rtspPath).udpHttpAudioStreamListener.AddHttpPuller(streamInfo)
+	duration := 5 * time.Second
+	ticker := time.NewTicker(duration)
 	c.Stream(func(w io.Writer) bool {
 		if !streamInfo.overed {
-			data := <-streamInfo.mediaData
-			if data == nil {
-				return true
-			}
-			if _, err := w.Write(*data); err == nil {
-				return true
-			} else {
-				streamInfo.logger.Printf("write audio data error:%v", err)
+			ticker.Reset(duration)
+			select {
+			case data := <-streamInfo.mediaData:
+				if data == nil {
+					return true
+				}
+				if _, err := w.Write(*data); err == nil {
+					return true
+				} else {
+					streamInfo.logger.Printf("write http audio data error:%v", err)
+					return false
+				}
+			case <-ticker.C:
+				streamInfo.logger.Printf("write http audio data timeout")
 				return false
 			}
+
 		} else {
 			return false
 		}
