@@ -628,6 +628,11 @@ func (session *Session) handleRequest(req *Request) {
 				}
 			}
 			if !waitExist {
+				if continueProcess := NewWebHookInfo(ON_STOP, session.ID, SESSEION_TYPE_PLAYER, TRANS_TYPE_TCP, req.URL, url.Path, req.Body, session.Conn.RemoteAddr().String(), session.logger).ExecuteWebHookNotify(); !continueProcess {
+					res.StatusCode = 500
+					res.Status = "Server not allowed you pull stream"
+					return
+				}
 				res.StatusCode = 404
 				res.Status = "NOT FOUND"
 				return
