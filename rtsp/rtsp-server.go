@@ -307,7 +307,7 @@ func (server *Server) Start() (err error) {
 			case pusher, addChnOk = <-server.addPusherCh:
 				if SaveStreamToLocal {
 					if addChnOk {
-						dir := path.Join(m3u8_dir_path, pusher.Path(), time.Now().Format("20060102"))
+						dir := path.Join(m3u8_dir_path, pusher.Path(), time.Now().Format("20060102-222222"))
 						err := utils.EnsureDir(dir)
 						if err != nil {
 							logger.Printf("EnsureDir:[%s] err:%v.", dir, err)
