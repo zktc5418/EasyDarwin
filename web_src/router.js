@@ -17,7 +17,7 @@ const router = new Router({
         {
             path: '/',
             component: AdminLTE,
-            // meta: { needLogin: true },
+            meta: { needLogin: true },
             children: [
                 {
                     path: '',
